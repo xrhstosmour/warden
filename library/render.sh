@@ -100,7 +100,6 @@ Port $SSH_PORT
 AllowUsers $users
 
 HostKey /etc/ssh/ssh_host_ed25519_key
-HostKey /etc/ssh/ssh_host_rsa_key
 
 PermitRootLogin no
 AuthenticationMethods publickey
@@ -111,11 +110,12 @@ PermitEmptyPasswords no
 PermitUserEnvironment no
 
 MaxAuthTries 3
-MaxSessions 4
+MaxSessions 2
 MaxStartups 10:30:60
 LoginGraceTime 20
 ClientAliveInterval 300
 ClientAliveCountMax 2
+TCPKeepAlive no
 
 X11Forwarding no
 AllowAgentForwarding no
@@ -128,7 +128,10 @@ PermitTunnel no
 KexAlgorithms mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org
 Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
 MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com
-HostKeyAlgorithms ssh-ed25519,sk-ssh-ed25519@openssh.com,rsa-sha2-512,rsa-sha2-256
+HostKeyAlgorithms ssh-ed25519,sk-ssh-ed25519@openssh.com
+
+# A source that keeps failing waits longer before sshd answers it again.
+PerSourcePenalties yes
 
 # Key fingerprints in the log, so a login can be traced to a key.
 LogLevel VERBOSE
