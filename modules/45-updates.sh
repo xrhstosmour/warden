@@ -17,6 +17,7 @@ Unattended-Upgrade::Origins-Pattern {
     "origin=Debian,codename=\${distro_codename}-security,label=Debian-Security";
     "origin=Debian,codename=\${distro_codename}-updates";
     "origin=Docker,label=Docker CE";
+    "origin=Tailscale,label=Tailscale";
 };
 Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
