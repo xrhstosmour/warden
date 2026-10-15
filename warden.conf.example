@@ -1,0 +1,33 @@
+# Copy to warden.conf and fill in. Sourced by bash as root, keep it yours.
+
+# The account you log in with to administer the server. It gets sudo, which
+# asks for a password you choose during the first run.
+ADMIN_USER=admin
+ADMIN_PUBLIC_KEY="ssh-ed25519 AAAA...replace admin@laptop"
+
+# The account deployments log in with. It runs the containers with rootless
+# Docker and has no sudo. Use a different key from the admin's.
+DEPLOY_USER=deploy
+DEPLOY_PUBLIC_KEY="ssh-ed25519 AAAA...replace deploy@laptop"
+
+# SSH moves here from 22. Allow it at the provider's firewall too if there
+# is one.
+SSH_PORT=2222
+
+# Optional, only these addresses or ranges may reach SSH, separated by
+# spaces. 100.64.0.0/10 is Tailscale, for example. Empty means anywhere.
+SSH_SOURCES=""
+
+# Ports open to everyone. UDP 443 is HTTP/3.
+PUBLIC_TCP_PORTS="80 443"
+PUBLIC_UDP_PORTS="443"
+
+# Optional, a single label such as app-1. Empty keeps the provider's.
+SERVER_HOSTNAME=""
+TIMEZONE=UTC
+
+# When the server may reboot itself after a kernel update, server time.
+REBOOT_TIME="04:00"
+
+# Swap file size when the server has no swap, 0 for none.
+SWAP_SIZE=2G

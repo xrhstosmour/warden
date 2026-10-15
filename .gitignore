@@ -1,0 +1,2 @@
+# Holds the server's public keys and choices, kept per machine.
+warden.conf
