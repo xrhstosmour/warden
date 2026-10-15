@@ -1,60 +1,87 @@
+<div align="center">
+
+<img src=".github/assets/icon.svg" width="128" alt="warden">
+
 # warden
 
-Turns a fresh Debian 13 VPS into a locked down host for containerised applications, with one command from your own machine. Idempotent, run it again any time and it applies only what drifted.
+**A fresh Debian 13 VPS, hardened for containers, in one command.**
 
-See [`AGENTS.md`](AGENTS.md) if you are an agent.
+Run it from your own machine against a new server. It locks the server down,
+moves SSH where you want it, and leaves rootless Docker ready for your
+deployments. Run it again any time, it only changes what drifted.
+
+</div>
 
 ## Use
 
-1. Create two key pairs, one for administering the server and one for deployments:
+```bash
+git clone https://github.com/xrhstosmour/warden && cd warden
+cp warden.conf.example warden.conf   # pick the SSH port, Tailscale, the rest
+./provision.sh root@203.0.113.10     # the provider's first login
+```
 
-   ```bash
-   ./keys.sh app
-   ```
+With the public keys left empty, `provision.sh` makes an `ed25519` key pair per
+account on your machine first. It asks you for the admin's `sudo` password on the
+server, logs in as both accounts on the new port before it calls it done, and
+writes an SSH config for them next to the keys:
 
-2. Copy `warden.conf.example` to `warden.conf` and fill it in, the keys from step 1, the SSH port, and optionally the addresses allowed to reach SSH.
+```bash
+ssh app-admin    # administer
+ssh app-deploy   # deploy
+```
 
-3. Point it at the server with the provider's initial login:
-
-   ```bash
-   ./provision.sh root@203.0.113.10
-   ```
-
-   It copies warden over, runs it with a terminal so you can choose the admin's `sudo` password, then logs in as both accounts on the new port before it reports success. Keep the first session open until that check passes.
-
-4. Later runs go through the admin account:
-
-   ```bash
-   ./provision.sh admin@203.0.113.10 -p 2222 -i ~/.ssh/app_admin
-   ```
-
+Later runs go through the admin, `./provision.sh admin@203.0.113.10 -p 2222`.
 On the server itself, `sudo ./install.sh` does the same without the copying.
+
+## SSH over Tailscale only
+
+```bash
+SSH_ACCESS=tailscale
+SSH_PORT=2222
+TAILSCALE_AUTH_KEY="tskey-auth-..."   # one-off, first run only
+TAILSCALE_SSH=no                      # yes adds Tailscale SSH on the tailnet
+```
+
+The server joins your tailnet, and SSH answers there only, nothing on the public
+address but HTTP and HTTPS. Your machine has to be on the tailnet too.
+`provision.sh` logs in over it before it closes the old way in, and should that
+login fail, public SSH reopens by itself after 15 minutes, so a mistake never
+locks you out.
 
 ## What it does
 
-- Accounts: an admin with key login and password `sudo`, a deploy user with key login, no password and no `sudo`, a sudoers drop-in with `use_pty` and a log
-- SSH: its own port, keys only, no root, only the two accounts, post-quantum key exchange, strong ciphers only, small Diffie-Hellman groups removed, forwarding for the admin only
-- Firewall: `nftables`, inbound denied except SSH and the public ports, optionally SSH from listed ranges only, forwarding closed, the old SSH port kept open until SSH has moved
-- `fail2ban`: SSH bans growing with each repeat, and a week long ban on every port for repeat offenders
-- Docker: rootless for the deploy user, the system wide daemon masked, so a container escape lands in an unprivileged account, real client addresses reach the proxy, resource limits delegated, logs capped
-- Kernel: hardened network and kernel parameters, unused protocols and file systems blocked from loading, BBR congestion control
-- Updates: security and stable updates daily including Docker, services restarted after library updates, reboots at a set time when the kernel needs one
-- Time: `chrony` with Network Time Security sources only
-- Logs: persistent journal capped at 1 GB and one month, no core dumps, `auditd` rules for accounts, privileges, SSH, firewall and kernel changes, AppArmor on
-- Rest: `/dev/shm` without executables or devices, umask `027`, a swap file when there is none, no survey or plain text remote shell packages
+**Accounts**: an admin with key login and password `sudo`, and a deploy user with
+key login, no password and no `sudo`.
 
-## What it does not do
+**SSH**: its own port, keys only, no root, the two accounts only, post-quantum key
+exchange, strong ciphers only. Open to everyone, to listed ranges, or to your
+tailnet alone.
 
-- Provider side: snapshots, the provider's firewall, and console access are yours to set up. Keep console access, it is the way back in if SSH is ever misconfigured.
-- Applications: warden prepares the deploy user, the application's own deploy puts the containers there.
-- Off-box backups: belong with the application, which knows what to back up.
+**Firewall**: `nftables`, everything inbound dropped except SSH, HTTP and HTTPS.
+Nothing is forwarded.
 
-## Development
+**Rootless Docker** for the deploy user, the system daemon masked, so escaping a
+container lands in an account that can do nothing. Real client addresses still
+reach your proxy.
+
+**`fail2ban`**: SSH bans that grow with each repeat, and a week on every port for
+repeat offenders.
+
+**Updates**: security updates applied daily, and a reboot in your chosen quiet
+hour when the kernel needs one.
+
+**Kernel**: hardened network and kernel parameters, unused protocols and file
+systems blocked, BBR congestion control.
+
+**The rest**: encrypted time sync, logs kept a month and capped, no core dumps,
+`auditd` watching logins and keys, AppArmor on, `/dev/shm` without executables, a
+swap file on small machines.
+
+## Test
 
 ```bash
-shellcheck -x -S style install.sh provision.sh keys.sh library/*.sh modules/*.sh tests/integration/*.sh
-bats tests/
-tests/integration/run.sh
+bats tests/                  # the rendered configuration
+tests/integration/run.sh     # warden twice in a Debian 13 container
 ```
 
-`tests/integration/run.sh` runs warden twice in a Debian 13 container under systemd, fails if the second run changes anything, then checks the result.
+The second run must change nothing.
