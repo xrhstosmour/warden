@@ -8,7 +8,7 @@ DEBIAN_FRONTEND=noninteractive apt-get full-upgrade -y -q
 install_packages \
     apparmor apparmor-profiles apparmor-profiles-extra apparmor-utils \
     apt-listchanges auditd ca-certificates chrony curl dbus-user-session \
-    debsums fail2ban gnupg needrestart nftables python3-systemd rsync \
+    debsums fail2ban gnupg libpam-tmpdir needrestart nftables python3-systemd rsync \
     slirp4netns sudo uidmap unattended-upgrades
 
 # Survey uploads, plain text remote shells, and firewall front ends that
