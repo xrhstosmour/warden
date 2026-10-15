@@ -7,9 +7,12 @@
 # or debian@203.0.113.10. Afterwards it is the admin on the new port,
 # ./provision.sh admin@203.0.113.10 -p 2222 -i ~/.ssh/app_admin.
 #
-# Copies warden and warden.conf to the server, runs install.sh there with
-# a terminal for the admin password prompt, then proves both accounts can
-# log in on the new port before it reports success.
+# With the public keys left empty in warden.conf, it first makes an
+# ed25519 key pair per account on this machine, where they stay. Then it
+# copies warden and warden.conf to the server, runs install.sh there with
+# a terminal for the admin password prompt, and proves both accounts can
+# log in on the new port, over the tailnet when SSH is kept to it, before
+# it reports success.
 
 # Remote commands are built here on purpose, from fixed names and validated
 # configuration values.
@@ -38,12 +41,34 @@ source "$WARDEN_DIRECTORY/library/common.sh"
 # shellcheck source=library/configuration.sh
 source "$WARDEN_DIRECTORY/library/configuration.sh"
 load_configuration "$configuration"
-validate_configuration || fail "Fix $configuration and run again."
 
 host="${target#*@}"
 user="${target%@*}"
 sudo_prefix="sudo"
 [[ "$user" == "root" ]] && sudo_prefix=""
+
+# The keys, and the SSH configuration naming them, live on this machine.
+name="${SERVER_HOSTNAME:-${host//[^A-Za-z0-9-]/-}}"
+key_directory="${WARDEN_KEYS:-$HOME/.ssh}"
+admin_identity="$key_directory/${name}_admin"
+deploy_identity="$key_directory/${name}_deploy"
+
+if [[ -z "$ADMIN_PUBLIC_KEY" || -z "$DEPLOY_PUBLIC_KEY" ]]; then
+    log_info "Making the key pairs in $key_directory."
+    "$WARDEN_DIRECTORY/keys.sh" "$name" "$key_directory" >/dev/null
+    [[ -n "$ADMIN_PUBLIC_KEY" ]] || ADMIN_PUBLIC_KEY=$(cat "$admin_identity.pub")
+    [[ -n "$DEPLOY_PUBLIC_KEY" ]] || DEPLOY_PUBLIC_KEY=$(cat "$deploy_identity.pub")
+fi
+validate_configuration || fail "Fix $configuration and run again."
+
+if [[ "$SSH_ACCESS" == "tailscale" ]]; then
+    if command -v tailscale >/dev/null; then
+        tailscale status >/dev/null 2>&1 ||
+            fail "This machine is not on the tailnet, and SSH to the server will be kept to it. Connect first."
+    else
+        log_warning "No tailscale command here, make sure this machine is on the tailnet the server joins."
+    fi
+fi
 
 # Uploaded as the login user first, so a `sudo` password prompt never
 # competes with the upload for standard input. Then one `sudo`, with a
@@ -57,39 +82,94 @@ ssh "${ssh_options[@]}" "$target" "rm -rf $upload && umask 077 && mkdir $upload"
 # No macOS resource fork files in the archive.
 COPYFILE_DISABLE=1 tar -C "$WARDEN_DIRECTORY" -czf - install.sh library modules files |
     ssh "${ssh_options[@]}" "$target" "umask 077 && tar -xzf - -C $upload"
-ssh "${ssh_options[@]}" "$target" "umask 077 && cat > $upload/warden.conf" <"$configuration"
+# The keys made above follow the file's own lines, and so win over them.
+{
+    cat "$configuration"
+    printf '\nADMIN_PUBLIC_KEY="%s"\nDEPLOY_PUBLIC_KEY="%s"\n' "$ADMIN_PUBLIC_KEY" "$DEPLOY_PUBLIC_KEY"
+} | ssh "${ssh_options[@]}" "$target" "umask 077 && cat > $upload/warden.conf"
 
 log_info "Running warden on $host."
+output=$(mktemp)
+trap 'rm -f "$output"' EXIT
 ssh -t "${ssh_options[@]}" "$target" \
-    "upload=\$HOME/$upload; $sudo_prefix sh -c \"rm -rf $remote_directory && mv \$upload $remote_directory && chown -R root:root $remote_directory && bash $remote_directory/install.sh $remote_directory/warden.conf\""
+    "upload=\$HOME/$upload; $sudo_prefix sh -c \"rm -rf $remote_directory && mv \$upload $remote_directory && chown -R root:root $remote_directory && bash $remote_directory/install.sh $remote_directory/warden.conf\"" |
+    tee "$output"
 
-log_info "Checking that both accounts can log in on port $SSH_PORT."
+login_host="$host"
+if [[ "$SSH_ACCESS" == "tailscale" ]]; then
+    login_host=$(grep -o 'WARDEN_TAILSCALE_ADDRESS=[0-9.]*' "$output" | tail -1 | cut -d= -f2 || true)
+    [[ -n "$login_host" ]] ||
+        fail "warden did not report a tailnet address. Public SSH reopens on port $SSH_PORT in 15 minutes."
+fi
+
+# Only the key made for an account, when there is one, so a pass proves
+# that key works rather than whichever the agent offered first. Sets
+# `options`, macOS ships bash 3, which has no `mapfile`.
+identity_options() {
+    options=(-p "$SSH_PORT")
+    if [[ -f "$1" ]]; then
+        options+=(-i "$1" -o IdentitiesOnly=yes)
+    fi
+}
+
+log_info "Checking that both accounts can log in to $login_host on port $SSH_PORT."
 failures=0
 for account in "$ADMIN_USER" "$DEPLOY_USER"; do
-    if ssh -o BatchMode=yes -o ConnectTimeout=10 -p "$SSH_PORT" "$account@$host" true; then
+    identity="$deploy_identity"
+    [[ "$account" == "$ADMIN_USER" ]] && identity="$admin_identity"
+    identity_options "$identity"
+    if ssh -o BatchMode=yes -o ConnectTimeout=10 "${options[@]}" "$account@$login_host" true; then
         log_success "$account logs in."
     else
-        log_error "$account could not log in with your loaded keys. Check before closing any open session."
+        log_error "$account could not log in. Check before closing any open session."
         failures=$((failures + 1))
     fi
 done
 
 if ((failures > 0)); then
+    [[ "$SSH_ACCESS" == "tailscale" ]] && log_warning "Public SSH reopens on port $SSH_PORT in 15 minutes, to fix it from there."
     exit 1
 fi
 
+if [[ "$SSH_ACCESS" == "tailscale" ]]; then
+    log_info "The tailnet login works, keeping SSH on it. sudo asks for the admin password."
+    identity_options "$admin_identity"
+    ssh -t "${options[@]}" "$ADMIN_USER@$login_host" \
+        "sudo systemctl stop warden-ssh-rollback.timer" ||
+        fail "The rollback is still pending, run: sudo systemctl stop warden-ssh-rollback.timer"
+fi
+
+# A Host entry per account, in a file of its own next to the keys.
+ssh_configuration="$key_directory/$name.config"
+{
+    echo "# Written by warden's provision.sh for $host."
+    for account in "$ADMIN_USER" "$DEPLOY_USER"; do
+        identity="$deploy_identity"
+        role="deploy"
+        if [[ "$account" == "$ADMIN_USER" ]]; then
+            identity="$admin_identity"
+            role="admin"
+        fi
+        echo
+        echo "Host $name-$role"
+        echo "    HostName $login_host"
+        echo "    Port $SSH_PORT"
+        echo "    User $account"
+        if [[ -f "$identity" ]]; then
+            echo "    IdentityFile $identity"
+            echo "    IdentitiesOnly yes"
+        fi
+        echo "    AddKeysToAgent yes"
+        echo "    IgnoreUnknown UseKeychain"
+        echo "    UseKeychain yes"
+    done
+} >"$ssh_configuration"
+chmod 0600 "$ssh_configuration"
+
 cat <<EOF
 
-Done. Add this to ~/.ssh/config to shorten the commands, with each
-IdentityFile pointing at the matching private key:
+Done. The SSH configuration is in $ssh_configuration. Put this line at
+the top of ~/.ssh/config once, then ssh $name-admin or ssh $name-deploy:
 
-Host $host-admin
-    HostName $host
-    Port $SSH_PORT
-    User $ADMIN_USER
-
-Host $host-deploy
-    HostName $host
-    Port $SSH_PORT
-    User $DEPLOY_USER
+Include $ssh_configuration
 EOF

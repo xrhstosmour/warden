@@ -3,12 +3,16 @@
 # The account you log in with to administer the server. It gets sudo, which
 # asks for a password you choose during the first run.
 ADMIN_USER=admin
-ADMIN_PUBLIC_KEY="ssh-ed25519 AAAA...replace admin@laptop"
 
 # The account deployments log in with. It runs the containers with rootless
-# Docker and has no sudo. Use a different key from the admin's.
+# Docker and has no sudo.
 DEPLOY_USER=deploy
-DEPLOY_PUBLIC_KEY="ssh-ed25519 AAAA...replace deploy@laptop"
+
+# Leave both empty and provision.sh makes an ed25519 key pair per account in
+# ~/.ssh on this machine, named after SERVER_HOSTNAME or the host. Or paste
+# public keys you already have, a different one per account.
+ADMIN_PUBLIC_KEY=""
+DEPLOY_PUBLIC_KEY=""
 
 # SSH moves here from 22. Allow it at the provider's firewall too if there
 # is one.
