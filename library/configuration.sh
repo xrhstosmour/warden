@@ -10,6 +10,9 @@ DEPLOY_USER="${DEPLOY_USER:-deploy}"
 DEPLOY_PUBLIC_KEY="${DEPLOY_PUBLIC_KEY:-}"
 SSH_PORT="${SSH_PORT:-}"
 SSH_SOURCES="${SSH_SOURCES:-}"
+SSH_ACCESS="${SSH_ACCESS:-public}"
+TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY:-}"
+TAILSCALE_SSH="${TAILSCALE_SSH:-no}"
 PUBLIC_TCP_PORTS="${PUBLIC_TCP_PORTS:-80 443}"
 PUBLIC_UDP_PORTS="${PUBLIC_UDP_PORTS:-443}"
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-}"
@@ -25,6 +28,11 @@ load_configuration() {
 
     # shellcheck disable=SC1090 # The path is chosen at run time.
     source "$file"
+}
+
+# Whether this server joins a tailnet at all.
+uses_tailscale() {
+    [[ "$SSH_ACCESS" == "tailscale" || "$TAILSCALE_SSH" == "yes" || -n "$TAILSCALE_AUTH_KEY" ]]
 }
 
 # A public key line as `ssh-keygen` writes it, with an optional comment.
@@ -64,6 +72,15 @@ validate_configuration() {
     for port in $PUBLIC_TCP_PORTS; do
         [[ "$port" != "$SSH_PORT" ]] || problems+=("SSH_PORT must not also be listed as a public port.")
     done
+
+    [[ "$SSH_ACCESS" =~ ^(public|tailscale)$ ]] || problems+=("SSH_ACCESS must be public or tailscale.")
+    [[ "$TAILSCALE_SSH" =~ ^(yes|no)$ ]] || problems+=("TAILSCALE_SSH must be yes or no.")
+    if [[ -n "$TAILSCALE_AUTH_KEY" && ! "$TAILSCALE_AUTH_KEY" =~ ^tskey-[A-Za-z0-9-]+$ ]]; then
+        problems+=("TAILSCALE_AUTH_KEY must be a Tailscale auth key, tskey-auth-...")
+    fi
+    if [[ "$SSH_ACCESS" == "tailscale" && -n "$SSH_SOURCES" ]]; then
+        problems+=("SSH_SOURCES and SSH_ACCESS=tailscale exclude each other, the tailnet decides who reaches SSH.")
+    fi
 
     local source
     for source in $SSH_SOURCES; do

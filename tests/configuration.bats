@@ -8,6 +8,10 @@ setup() {
     DEPLOY_USER=deploy
     DEPLOY_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB7sX2oL3d6X0j6bJ8x4yJ0Jq1cZpXl8i2wY5mN3kQ0r deploy@laptop"
     SSH_PORT=2222
+    SSH_SOURCES=""
+    SSH_ACCESS=public
+    TAILSCALE_AUTH_KEY=""
+    TAILSCALE_SSH=no
 }
 
 @test "a complete configuration passes" {
@@ -75,3 +79,37 @@ setup() {
     [ "$status" -eq 1 ]
     [ "${#lines[@]}" -eq 3 ]
 }
+
+@test "SSH access is public or tailscale" {
+    SSH_ACCESS=vpn
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"SSH_ACCESS"* ]]
+}
+
+@test "a Tailscale auth key looks like one" {
+    TAILSCALE_AUTH_KEY="not-a-key"
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"TAILSCALE_AUTH_KEY"* ]]
+    TAILSCALE_AUTH_KEY="tskey-auth-k1a2b3-c4d5e6"
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "SSH sources and tailnet only SSH exclude each other" {
+    SSH_ACCESS=tailscale
+    SSH_SOURCES="203.0.113.0/24"
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"exclude each other"* ]]
+}
+
+@test "Tailscale is used only when asked for" {
+    run uses_tailscale
+    [ "$status" -eq 1 ]
+    TAILSCALE_SSH=yes
+    run uses_tailscale
+    [ "$status" -eq 0 ]
+}
+

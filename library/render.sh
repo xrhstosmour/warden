@@ -23,7 +23,15 @@ render_nftables() {
     fi
 
     local ssh_rules="        tcp dport $ssh_ports accept"
-    if [[ -n "$SSH_SOURCES" ]]; then
+    if [[ "$SSH_ACCESS" == "tailscale" ]]; then
+        # Reachable from the tailnet only. The port SSH listens on now stays
+        # open to everyone until `90-ssh.sh` has moved it, even when it is
+        # the same port, so the session doing the move is never cut off.
+        ssh_rules="        iifname \"tailscale0\" tcp dport $SSH_PORT accept"
+        if [[ -n "${TRANSITION_SSH_PORT:-}" ]]; then
+            ssh_rules+=$'\n'"        tcp dport $TRANSITION_SSH_PORT accept"
+        fi
+    elif [[ -n "$SSH_SOURCES" ]]; then
         local ipv4=() ipv6=() source
         for source in $SSH_SOURCES; do
             if [[ "$source" == *:* ]]; then ipv6+=("$source"); else ipv4+=("$source"); fi
@@ -62,6 +70,11 @@ $ssh_rules
 EOF
     [[ -n "$tcp_ports" ]] && echo "        tcp dport { $tcp_ports } accept"
     [[ -n "$udp_ports" ]] && echo "        udp dport { $udp_ports } accept"
+    if uses_tailscale; then
+        echo ""
+        echo "        # Tailscale's own port, for direct connections rather than relays."
+        echo "        udp dport 41641 accept"
+    fi
     cat <<'EOF'
     }
 

@@ -14,9 +14,23 @@ DEPLOY_PUBLIC_KEY="ssh-ed25519 AAAA...replace deploy@laptop"
 # is one.
 SSH_PORT=2222
 
-# Optional, only these addresses or ranges may reach SSH, separated by
-# spaces. 100.64.0.0/10 is Tailscale, for example. Empty means anywhere.
+# public: SSH_PORT is open to everyone, or to SSH_SOURCES when set.
+# tailscale: SSH_PORT answers on the tailnet only, nothing on the public
+# address. Needs this machine on the same tailnet.
+SSH_ACCESS=public
+
+# Optional with SSH_ACCESS=public, only these addresses or ranges may reach
+# SSH, separated by spaces. Empty means anywhere.
 SSH_SOURCES=""
+
+# Joins the server to your tailnet. A one-off key from
+# https://login.tailscale.com/admin/settings/keys, only needed on the first
+# run. Empty and SSH_ACCESS=public leaves Tailscale out.
+TAILSCALE_AUTH_KEY=""
+
+# yes: Tailscale SSH on port 22 of the tailnet address too, signed in by the
+# tailnet's access rules rather than keys. The SSH_PORT login stays as well.
+TAILSCALE_SSH=no
 
 # Ports open to everyone. UDP 443 is HTTP/3.
 PUBLIC_TCP_PORTS="80 443"

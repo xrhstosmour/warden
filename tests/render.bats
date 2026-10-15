@@ -9,6 +9,9 @@ setup() {
     SSH_SOURCES=""
     PUBLIC_TCP_PORTS="80 443"
     PUBLIC_UDP_PORTS="443"
+    SSH_ACCESS=public
+    TAILSCALE_AUTH_KEY=""
+    TAILSCALE_SSH=no
     unset TRANSITION_SSH_PORT
 }
 
@@ -65,3 +68,24 @@ setup() {
     run render_fail2ban
     [[ "$output" == *$'[sshd]\nenabled = true\nport = 2222'* ]]
 }
+
+@test "tailnet only SSH answers on the tailnet interface alone" {
+    SSH_ACCESS=tailscale
+    run render_nftables
+    [[ "$output" == *'iifname "tailscale0" tcp dport 2222 accept'* ]]
+    [[ "$output" != *$'\n        tcp dport 2222 accept'* ]]
+    [[ "$output" == *"udp dport 41641 accept"* ]]
+}
+
+@test "tailnet only SSH keeps the current port public until the move, even the same one" {
+    SSH_ACCESS=tailscale
+    TRANSITION_SSH_PORT=2222
+    run render_nftables
+    [[ "$output" == *$'\n        tcp dport 2222 accept'* ]]
+}
+
+@test "the Tailscale port stays closed without Tailscale" {
+    run render_nftables
+    [[ "$output" != *"41641"* ]]
+}
+
