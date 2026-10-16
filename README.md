@@ -38,9 +38,13 @@ On the server itself, `sudo ./install.sh` does the same without the copying.
 ```bash
 SSH_ACCESS=tailscale
 SSH_PORT=2222
-TAILSCALE_AUTH_KEY="tskey-auth-..."   # one-off, first run only
-TAILSCALE_SSH=no                      # yes adds Tailscale SSH on the tailnet
+TAILSCALE_AUTH_KEY=""   # optional, a one-off tskey-auth-... key
+TAILSCALE_SSH=no        # yes adds Tailscale SSH on the tailnet
 ```
+
+Without a key, the first run prints a Tailscale login URL, open it on your
+machine and approve the server. Then turn off key expiry for it in the admin
+console, or it drops off the tailnet in 180 days.
 
 The server joins your tailnet, and SSH answers there only, nothing on the public
 address but HTTP and HTTPS. Your machine has to be on the tailnet too.

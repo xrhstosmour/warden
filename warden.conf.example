@@ -29,7 +29,8 @@ SSH_SOURCES=""
 
 # Joins the server to your tailnet. A one-off key from
 # https://login.tailscale.com/admin/settings/keys, only needed on the first
-# run. Empty and SSH_ACCESS=public leaves Tailscale out.
+# run. Empty, the first run prints a login URL to approve in your browser
+# instead. Empty and SSH_ACCESS=public leaves Tailscale out.
 TAILSCALE_AUTH_KEY=""
 
 # yes: Tailscale SSH on port 22 of the tailnet address too, signed in by the

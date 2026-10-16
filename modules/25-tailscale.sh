@@ -27,21 +27,27 @@ ssh_over_tailnet=false
 [[ "$TAILSCALE_SSH" == "yes" ]] && ssh_over_tailnet=true
 
 if ! tailscale status >/dev/null 2>&1; then
-    [[ -n "$TAILSCALE_AUTH_KEY" ]] ||
-        fail "This server is not on a tailnet yet, set TAILSCALE_AUTH_KEY in warden.conf."
-    # Read from a file rather than the command line, where every process
-    # on the machine can see it.
-    key_file=$(mktemp)
-    printf '%s' "$TAILSCALE_AUTH_KEY" >"$key_file"
     # The server keeps its own resolver, MagicDNS is for people, and the
     # containers resolve through the host.
-    tailscale up --auth-key="file:$key_file" --hostname="$(hostname)" \
-        --accept-dns=false --ssh="$ssh_over_tailnet" ||
-        {
-            rm -f "$key_file"
-            fail "Tailscale did not sign in, check that the auth key is valid and unused."
-        }
-    rm -f "$key_file"
+    up_options=(--hostname="$(hostname)" --accept-dns=false --ssh="$ssh_over_tailnet")
+    if [[ -n "$TAILSCALE_AUTH_KEY" ]]; then
+        # Read from a file rather than the command line, where every
+        # process on the machine can see it.
+        key_file=$(mktemp)
+        printf '%s' "$TAILSCALE_AUTH_KEY" >"$key_file"
+        tailscale up --auth-key="file:$key_file" "${up_options[@]}" ||
+            {
+                rm -f "$key_file"
+                fail "Tailscale did not sign in, check that the auth key is valid and unused."
+            }
+        rm -f "$key_file"
+    else
+        # Without a key, Tailscale prints a login URL and waits until it
+        # is approved in a browser.
+        log_info "Open the login URL below in your browser to add this server to your tailnet."
+        tailscale up --timeout=10m "${up_options[@]}" ||
+            fail "Tailscale did not sign in, the login URL was not approved in time."
+    fi
     log_info "Joined the tailnet."
 fi
 
