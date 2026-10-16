@@ -21,11 +21,9 @@ as_deploy() {
 architecture=$(dpkg --print-architecture)
 # shellcheck disable=SC1091 # Present on every Debian system.
 codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
-if [[ ! -f /etc/apt/keyrings/docker.asc ]]; then
-    install -d -m 0755 /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
-    chmod 0644 /etc/apt/keyrings/docker.asc
-fi
+# The fingerprint Docker publishes in its installation guide.
+place_signing_key https://download.docker.com/linux/debian/gpg /etc/apt/keyrings/docker.asc \
+    9DC858229FC7DD38854AE2D88D81803C0EBFCD88
 if place_content /etc/apt/sources.list.d/docker.sources 0644 <<EOF; then
 # Managed by warden, local changes are overwritten on the next run.
 Types: deb

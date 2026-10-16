@@ -52,6 +52,38 @@ place_content() {
     return "$status"
 }
 
+# The primary key fingerprint of an OpenPGP key file.
+key_fingerprint() {
+    gpg --show-keys --with-colons "$1" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }'
+}
+
+# Place a repository's signing key, refusing one whose fingerprint is not
+# the vendor's published one, so a swapped key is never trusted. Checked on
+# every run, not only the first.
+# place_signing_key "url" "target" "fingerprint"
+place_signing_key() {
+    local url="$1"
+    local target="$2"
+    local fingerprint="$3"
+
+    if [[ -f "$target" && "$(key_fingerprint "$target")" == "$fingerprint" ]]; then
+        return 0
+    fi
+    local temporary
+    temporary=$(mktemp)
+    curl -fsSL "$url" -o "$temporary" || {
+        rm -f "$temporary"
+        fail "Could not download the signing key from $url."
+    }
+    if [[ "$(key_fingerprint "$temporary")" != "$fingerprint" ]]; then
+        rm -f "$temporary"
+        fail "The signing key from $url is not the expected $fingerprint."
+    fi
+    mkdir -p "$(dirname "$target")"
+    install -m 0644 "$temporary" "$target"
+    rm -f "$temporary"
+}
+
 # Install packages that are missing, quietly and without prompts.
 install_packages() {
     local missing=()

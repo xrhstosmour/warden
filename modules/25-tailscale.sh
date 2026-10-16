@@ -9,10 +9,9 @@ uses_tailscale || return 0
 # shellcheck disable=SC1091 # Present on every Debian system.
 codename=$(. /etc/os-release && echo "$VERSION_CODENAME")
 keyring=/usr/share/keyrings/tailscale-archive-keyring.gpg
-if [[ ! -f "$keyring" ]]; then
-    curl -fsSL "https://pkgs.tailscale.com/stable/debian/$codename.noarmor.gpg" -o "$keyring"
-    chmod 0644 "$keyring"
-fi
+# The fingerprint of Tailscale's package signing key.
+place_signing_key "https://pkgs.tailscale.com/stable/debian/$codename.noarmor.gpg" "$keyring" \
+    2596A99EAAB33821893C0A79458CA832957F5868
 if place_content /etc/apt/sources.list.d/tailscale.list 0644 <<EOF; then
 # Managed by warden, local changes are overwritten on the next run.
 deb [signed-by=$keyring] https://pkgs.tailscale.com/stable/debian $codename main
