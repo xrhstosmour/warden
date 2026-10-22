@@ -4,9 +4,9 @@ setup() {
     source "$BATS_TEST_DIRNAME/../library/common.sh"
     source "$BATS_TEST_DIRNAME/../library/configuration.sh"
     ADMIN_USER=admin
-    ADMIN_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl admin@laptop"
+    ADMIN_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOSWAHsCf+sZ6GEGPlRvVDuNAa/vjrxWpqgaFxT/Dsxt admin@laptop"
     DEPLOY_USER=deploy
-    DEPLOY_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIB7sX2oL3d6X0j6bJ8x4yJ0Jq1cZpXl8i2wY5mN3kQ0r deploy@laptop"
+    DEPLOY_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICMxjodA14l51z5VGfmg5g/Okt4x3V08Kz/XOy5hTcli deploy@laptop"
     SSH_PORT=2222
     SSH_SOURCES=""
     SSH_ACCESS=public
@@ -50,7 +50,7 @@ setup() {
 }
 
 @test "a key carrying a second line is refused" {
-    ADMIN_PUBLIC_KEY=$'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl a\nssh-ed25519 AAAAC3Nza b'
+    ADMIN_PUBLIC_KEY=$'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOSWAHsCf+sZ6GEGPlRvVDuNAa/vjrxWpqgaFxT/Dsxt a\nssh-ed25519 AAAAC3Nza b'
     run validate_configuration
     [ "$status" -eq 1 ]
     [[ "$output" == *"ADMIN_PUBLIC_KEY"* ]]
