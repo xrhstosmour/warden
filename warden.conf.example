@@ -64,3 +64,8 @@ LOGIN_STATUS=yes
 # yes: installs warden-audit, run it as `sudo warden-audit` to check the server
 # still matches what warden set up. It only reads, it changes nothing. no: off.
 AUDIT_TOOL=yes
+
+# Range Docker takes new container networks from, cut into /24 networks. Pick
+# one that overlaps neither your VPN, your tailnet nor the provider network.
+# Existing networks keep their range. Empty uses Docker's own default.
+DOCKER_ADDRESS_POOL=172.30.0.0/16

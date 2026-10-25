@@ -8,7 +8,7 @@ Hardens a fresh Debian VPS for containers in one command, run from your own mach
 - SSH on its own port, keys only, no root, post-quantum key exchange
 - SSH open to everyone, to listed ranges, or to your tailnet only
 - `nftables` firewall, only SSH, HTTP and HTTPS inbound
-- Rootless Docker for the deploy account, system daemon masked
+- Rootless Docker for the deploy account, system daemon masked, container networks from their own range, `DOCKER_ADDRESS_POOL`
 - `fail2ban` with growing bans for repeat offenders
 - Daily security updates and reboots in a quiet hour
 - Hardened kernel and network parameters, BBR

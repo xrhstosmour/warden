@@ -15,6 +15,7 @@ setup() {
     ETCKEEPER=yes
     LOGIN_STATUS=yes
     AUDIT_TOOL=yes
+    DOCKER_ADDRESS_POOL=172.30.0.0/16
 }
 
 @test "a complete configuration passes" {
@@ -127,6 +128,18 @@ setup() {
     run validate_configuration
     [ "$status" -eq 1 ]
     [[ "$output" == *"AUDIT_TOOL"* ]]
+}
+
+@test "the Docker address pool must be a private range or empty" {
+    DOCKER_ADDRESS_POOL=""
+    run validate_configuration
+    [ "$status" -eq 0 ]
+    for pool in 8.8.8.0/24 172.30.0.0/28 172.30.0.0 not-a-range 10.999.0.0/16 10.0/16 172.16.5.0/16 10.1.2.3/8 192.168.0.0/8 172.32.0.0/16; do
+        DOCKER_ADDRESS_POOL="$pool"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"DOCKER_ADDRESS_POOL"* ]]
+    done
 }
 
 @test "Tailscale is used only when asked for" {

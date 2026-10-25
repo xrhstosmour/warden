@@ -22,6 +22,7 @@ SWAP_SIZE="${SWAP_SIZE:-2G}"
 ETCKEEPER="${ETCKEEPER:-yes}"
 LOGIN_STATUS="${LOGIN_STATUS:-yes}"
 AUDIT_TOOL="${AUDIT_TOOL:-yes}"
+DOCKER_ADDRESS_POOL="${DOCKER_ADDRESS_POOL-172.30.0.0/16}"
 
 # Source a configuration file. It is plain `KEY=value` lines, sourced as
 # bash, so it must be root's own file and nobody else's to write.
@@ -38,6 +39,11 @@ uses_tailscale() {
     [[ "$SSH_ACCESS" == "tailscale" || "$TAILSCALE_SSH" == "yes" || -n "$TAILSCALE_AUTH_KEY" ]]
 }
 
+# Whether new Docker networks take their ranges from a warden pool.
+uses_docker_pool() {
+    [[ -n "$DOCKER_ADDRESS_POOL" ]]
+}
+
 # A public key line as `ssh-keygen` writes it, with an optional comment.
 is_public_key() {
     [[ "$1" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-nistp(256|384|521)|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)\ [A-Za-z0-9+/]+={0,3}(\ [^[:cntrl:]]*)?$ ]]
@@ -45,6 +51,22 @@ is_public_key() {
 
 is_username() {
     [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,30}$ ]] && [[ "$1" != "root" ]]
+}
+
+# A network in the private blocks, wide enough to be cut into /24 networks,
+# written with the host bits zero the way Docker wants it.
+is_private_pool() {
+    [[ "$1" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})/([0-9]{1,2})$ ]] || return 1
+    local first=$((10#${BASH_REMATCH[1]})) second=$((10#${BASH_REMATCH[2]}))
+    local third=$((10#${BASH_REMATCH[3]})) fourth=$((10#${BASH_REMATCH[4]})) prefix=$((10#${BASH_REMATCH[5]}))
+
+    ((first <= 255 && second <= 255 && third <= 255 && fourth <= 255)) || return 1
+    ((prefix >= 8 && prefix <= 24)) || return 1
+    ((first == 10 || (first == 172 && second >= 16 && second <= 31) || (first == 192 && second == 168))) || return 1
+
+    local address=$(((first << 24) | (second << 16) | (third << 8) | fourth))
+    local mask=$(((0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF))
+    (((address & ~mask & 0xFFFFFFFF) == 0))
 }
 
 is_port() {
@@ -99,6 +121,9 @@ validate_configuration() {
     [[ "$ETCKEEPER" =~ ^(yes|no)$ ]] || problems+=("ETCKEEPER must be yes or no.")
     [[ "$LOGIN_STATUS" =~ ^(yes|no)$ ]] || problems+=("LOGIN_STATUS must be yes or no.")
     [[ "$AUDIT_TOOL" =~ ^(yes|no)$ ]] || problems+=("AUDIT_TOOL must be yes or no.")
+    if [[ -n "$DOCKER_ADDRESS_POOL" ]] && ! is_private_pool "$DOCKER_ADDRESS_POOL"; then
+        problems+=("DOCKER_ADDRESS_POOL must be a private IPv4 range from /8 to /24, such as 172.30.0.0/16, or empty for Docker's own.")
+    fi
 
     if ((${#problems[@]} > 0)); then
         printf '%s\n' "${problems[@]}" >&2
