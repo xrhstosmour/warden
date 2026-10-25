@@ -16,6 +16,8 @@ setup() {
     LOGIN_STATUS=yes
     AUDIT_TOOL=yes
     DOCKER_ADDRESS_POOL=172.30.0.0/16
+    ALERTS=no
+    NTFY_SERVER=https://ntfy.sh
 }
 
 @test "a complete configuration passes" {
@@ -139,6 +141,16 @@ setup() {
         run validate_configuration
         [ "$status" -eq 1 ]
         [[ "$output" == *"DOCKER_ADDRESS_POOL"* ]]
+    done
+}
+
+@test "alerts accept only no or ntfy, over https, with a sensible disk threshold" {
+    for assignment in ALERTS=signal NTFY_SERVER=http://ntfy.sh NTFY_SERVER=ntfy.sh; do
+        setup
+        printf -v "${assignment%%=*}" '%s' "${assignment#*=}"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"${assignment%%=*}"* ]]
     done
 }
 

@@ -69,3 +69,17 @@ AUDIT_TOOL=yes
 # one that overlaps neither your VPN, your tailnet nor the provider network.
 # Existing networks keep their range. Empty uses Docker's own default.
 DOCKER_ADDRESS_POOL=172.30.0.0/16
+
+# Alerts to your phone through ntfy. Off by default, it needs the ntfy app
+# and sends text through the ntfy server you pick.
+#   no:   nothing is sent.
+#   ntfy: a full disk, a failed unit and optionally every SSH login.
+# warden makes a random topic on the server, which is the only password to
+# it, anyone who learns it can read your alerts or send fake ones. Read it
+# with `sudo cat /var/lib/warden/ntfy-topic` and subscribe to it in the app.
+# Messages carry the server name, never client addresses or secrets. A dead
+# or unreachable server sends nothing.
+ALERTS=no
+
+# https://ntfy.sh is the public server. Your own ntfy server works the same.
+NTFY_SERVER=https://ntfy.sh

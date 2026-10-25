@@ -23,6 +23,8 @@ ETCKEEPER="${ETCKEEPER:-yes}"
 LOGIN_STATUS="${LOGIN_STATUS:-yes}"
 AUDIT_TOOL="${AUDIT_TOOL:-yes}"
 DOCKER_ADDRESS_POOL="${DOCKER_ADDRESS_POOL-172.30.0.0/16}"
+ALERTS="${ALERTS:-no}"
+NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
 
 # Source a configuration file. It is plain `KEY=value` lines, sourced as
 # bash, so it must be root's own file and nobody else's to write.
@@ -42,6 +44,11 @@ uses_tailscale() {
 # Whether new Docker networks take their ranges from a warden pool.
 uses_docker_pool() {
     [[ -n "$DOCKER_ADDRESS_POOL" ]]
+}
+
+# Whether alerts are sent to a phone.
+uses_alerts() {
+    [[ "$ALERTS" == "ntfy" ]]
 }
 
 # A public key line as `ssh-keygen` writes it, with an optional comment.
@@ -121,6 +128,8 @@ validate_configuration() {
     [[ "$ETCKEEPER" =~ ^(yes|no)$ ]] || problems+=("ETCKEEPER must be yes or no.")
     [[ "$LOGIN_STATUS" =~ ^(yes|no)$ ]] || problems+=("LOGIN_STATUS must be yes or no.")
     [[ "$AUDIT_TOOL" =~ ^(yes|no)$ ]] || problems+=("AUDIT_TOOL must be yes or no.")
+    [[ "$ALERTS" =~ ^(no|ntfy)$ ]] || problems+=("ALERTS must be no or ntfy.")
+    [[ "$NTFY_SERVER" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || problems+=("NTFY_SERVER must be an https address, such as https://ntfy.sh.")
     if [[ -n "$DOCKER_ADDRESS_POOL" ]] && ! is_private_pool "$DOCKER_ADDRESS_POOL"; then
         problems+=("DOCKER_ADDRESS_POOL must be a private IPv4 range from /8 to /24, such as 172.30.0.0/16, or empty for Docker's own.")
     fi
