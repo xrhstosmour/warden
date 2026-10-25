@@ -37,6 +37,7 @@ check "a rootless container runs" sh -c 'sudo -u deploy -H XDG_RUNTIME_DIR=/run/
 check "core dumps are off" sh -c 'grep -q "Storage=none" /etc/systemd/coredump.conf.d/warden.conf'
 check "sudo still parses" visudo -cq
 check "the login status is installed" test -f /etc/profile.d/warden-status.sh
+check "warden-audit is installed" test -x /usr/local/sbin/warden-audit
 check "/etc is in git and committed" sh -c 'test -d /etc/.git && ! etckeeper unclean'
 
 if ((failures > 0)); then

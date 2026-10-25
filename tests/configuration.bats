@@ -14,6 +14,7 @@ setup() {
     TAILSCALE_SSH=no
     ETCKEEPER=yes
     LOGIN_STATUS=yes
+    AUDIT_TOOL=yes
 }
 
 @test "a complete configuration passes" {
@@ -119,6 +120,13 @@ setup() {
     run validate_configuration
     [ "$status" -eq 1 ]
     [[ "$output" == *"LOGIN_STATUS"* ]]
+}
+
+@test "the audit tool accepts only yes or no" {
+    AUDIT_TOOL=maybe
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"AUDIT_TOOL"* ]]
 }
 
 @test "Tailscale is used only when asked for" {

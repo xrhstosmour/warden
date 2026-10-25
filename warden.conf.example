@@ -60,3 +60,7 @@ ETCKEEPER=yes
 # on every interactive SSH login. It only reads local state, nothing leaves
 # the server. no: off.
 LOGIN_STATUS=yes
+
+# yes: installs warden-audit, run it as `sudo warden-audit` to check the server
+# still matches what warden set up. It only reads, it changes nothing. no: off.
+AUDIT_TOOL=yes
