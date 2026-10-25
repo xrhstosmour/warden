@@ -42,6 +42,7 @@ for module in "$WARDEN_DIRECTORY"/modules/*.sh; do
     (source "$module")
 done
 
+describe_features >&2
 log_success "Done. Log in as $ADMIN_USER on port $SSH_PORT from a new terminal before closing this one."
 if [[ -f /var/run/reboot-required ]]; then
     log_warning "A reboot is needed to finish, run sudo reboot once the new login works."

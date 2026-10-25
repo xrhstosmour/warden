@@ -243,3 +243,16 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
+
+@test "the feature list says what is on and what is off" {
+    run describe_features
+    [[ "$output" == *"etckeeper"*"on"* ]]
+    [[ "$output" == *"alerts"*"off"*"ALERTS=ntfy"* ]]
+    [[ "$output" == *"backups"*"off"*"BACKUP_REPOSITORY"* ]]
+    ALERTS=ntfy
+    BACKUP_REPOSITORY=sftp:backup@laptop:/srv/warden
+    CLOUDFLARE_ONLY=yes
+    run describe_features
+    [[ "$output" == *"alerts"*"on"* ]]
+    [[ "$output" == *"Cloudflare only"*"on"* ]]
+}

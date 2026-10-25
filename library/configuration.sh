@@ -202,3 +202,21 @@ validate_configuration() {
         return 1
     fi
 }
+
+# One row of the feature list: name, on or off, and the setting that changes it.
+print_feature() {
+    printf '  %-20s %-4s %s\n' "$1" "$2" "$3"
+}
+
+# One line per optional feature, on or off, and the setting that changes it,
+# so nothing is switched on or off without being told.
+describe_features() {
+    echo "Optional features, change them in warden.conf and run again:"
+    print_feature "etckeeper" "$([[ "$ETCKEEPER" == yes ]] && echo on || echo off)" "ETCKEEPER, /etc in git"
+    print_feature "login status" "$([[ "$LOGIN_STATUS" == yes ]] && echo on || echo off)" "LOGIN_STATUS, a status line on SSH login"
+    print_feature "warden-audit" "$([[ "$AUDIT_TOOL" == yes ]] && echo on || echo off)" "AUDIT_TOOL, sudo warden-audit"
+    print_feature "Docker address pool" "$(uses_docker_pool && echo on || echo off)" "DOCKER_ADDRESS_POOL=${DOCKER_ADDRESS_POOL:-the Docker default}"
+    print_feature "alerts" "$(uses_alerts && echo on || echo off)" "ALERTS=ntfy, phone alerts for disk, units and SSH logins"
+    print_feature "backups" "$(uses_backups && echo on || echo off)" "BACKUP_REPOSITORY, encrypted restic backups"
+    print_feature "Cloudflare only" "$(uses_cloudflare && echo on || echo off)" "CLOUDFLARE_ONLY, public ports for Cloudflare alone"
+}
