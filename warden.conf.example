@@ -98,3 +98,40 @@ ALERT_DISK_PERCENT=85
 
 # yes: also one alert per SSH login, with the user name only.
 ALERT_SSH_LOGIN=yes
+
+# Encrypted backups with restic. Off while BACKUP_REPOSITORY is empty. The
+# data is encrypted here before it leaves, the target only ever holds
+# ciphertext, though it sees that you back up, when, and how much.
+#   sftp:user@host:/path   any SFTP host, a laptop over Tailscale works while
+#                          it is awake and on
+#   rclone:remote:path     anything rclone reaches, such as Filen or Google
+#                          Drive. Filen needs rclone 1.73 or newer, the Debian
+#                          package may be older, warden warns when it is.
+BACKUP_REPOSITORY=""
+
+# Made on your machine, provision.sh copies them to the server, readable by
+# root alone. Use absolute paths. The password file holds one line, the restic
+# password: keep a copy off the server, without it the backups are unreadable.
+BACKUP_PASSWORD_FILE=""
+
+# sftp only: a private key made for backups alone, and the target's host key
+# so it is never trusted blindly. Get the line with
+# `ssh-keyscan -t ed25519 <host>`, check its fingerprint, paste it here.
+BACKUP_SSH_KEY_FILE=""
+BACKUP_HOST_KEY=""
+BACKUP_SSH_PORT=22
+
+# rclone only: the rclone.conf you made on your machine with `rclone config`.
+BACKUP_RCLONE_CONFIG_FILE=""
+
+# Backed up besides /etc, which is always included. Databases need a dump
+# first, a copy of their live files may not restore. Docker images are skipped.
+BACKUP_PATHS="/home"
+
+# Server time, with a few minutes of random delay.
+BACKUP_TIME="03:30"
+
+# How many daily, weekly and monthly snapshots are kept.
+BACKUP_KEEP_DAILY=7
+BACKUP_KEEP_WEEKLY=4
+BACKUP_KEEP_MONTHLY=6
