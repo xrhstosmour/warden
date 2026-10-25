@@ -8,6 +8,19 @@ join_by_comma() {
     echo "$*"
 }
 
+# One nftables set of Cloudflare ranges, read from the cache the sync script
+# keeps. An empty set is valid, it simply matches nobody.
+render_cloudflare_set() {
+    local name="$1" type="$2" file="$3"
+    local ranges=""
+    # shellcheck disable=SC2046 # One range per line, split on purpose.
+    [[ -s "$file" ]] && ranges=$(join_by_comma $(cat "$file"))
+    echo "    set $name {"
+    echo "        type $type; flags interval;"
+    [[ -n "$ranges" ]] && echo "        elements = { $ranges }"
+    echo "    }"
+}
+
 render_nftables() {
     local tcp_ports udp_ports
     # shellcheck disable=SC2086 # Space separated lists on purpose.
@@ -42,6 +55,14 @@ render_nftables() {
         ssh_rules="${ssh_rules%$'\n'}"
     fi
 
+    # With CLOUDFLARE_ONLY every public port answers Cloudflare's ranges alone.
+    local cloudflare_sets=""
+    if [[ "${CLOUDFLARE_ONLY:-no}" == "yes" ]]; then
+        local cache="${CLOUDFLARE_DIRECTORY:-/var/lib/warden/cloudflare}"
+        cloudflare_sets=$(render_cloudflare_set cloudflare4 ipv4_addr "$cache/ipv4")$'\n'
+        cloudflare_sets+=$(render_cloudflare_set cloudflare6 ipv6_addr "$cache/ipv6")$'\n'
+    fi
+
     cat <<EOF
 #!/usr/sbin/nft -f
 # Managed by warden, local changes are overwritten on the next run.
@@ -55,7 +76,7 @@ render_nftables() {
 table inet warden
 delete table inet warden
 table inet warden {
-    chain input {
+$cloudflare_sets    chain input {
         type filter hook input priority filter; policy drop;
 
         ct state established,related accept
@@ -68,8 +89,19 @@ table inet warden {
 
 $ssh_rules
 EOF
-    [[ -n "$tcp_ports" ]] && echo "        tcp dport { $tcp_ports } accept"
-    [[ -n "$udp_ports" ]] && echo "        udp dport { $udp_ports } accept"
+    if [[ "${CLOUDFLARE_ONLY:-no}" == "yes" ]]; then
+        if [[ -n "$tcp_ports" ]]; then
+            echo "        ip saddr @cloudflare4 tcp dport { $tcp_ports } accept"
+            echo "        ip6 saddr @cloudflare6 tcp dport { $tcp_ports } accept"
+        fi
+        if [[ -n "$udp_ports" ]]; then
+            echo "        ip saddr @cloudflare4 udp dport { $udp_ports } accept"
+            echo "        ip6 saddr @cloudflare6 udp dport { $udp_ports } accept"
+        fi
+    else
+        [[ -n "$tcp_ports" ]] && echo "        tcp dport { $tcp_ports } accept"
+        [[ -n "$udp_ports" ]] && echo "        udp dport { $udp_ports } accept"
+    fi
     if uses_tailscale; then
         echo ""
         echo "        # Tailscale's own port, for direct connections rather than relays."

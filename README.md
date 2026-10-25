@@ -45,3 +45,7 @@ What to know first:
 - A dead or unreachable server sends nothing, so this does not tell you the server is down.
 - `ALERT_SSH_LOGIN=yes` adds one line to `/etc/pam.d/sshd`, a file `openssh-server` owns. Warden also keeps your edited version on upgrades (`--force-confold`), because unattended upgrades otherwise hold the package back to ask which file to keep.
 - The topic lives in `/var/lib/warden`, outside `/etc`, so `etckeeper` never commits it.
+
+## Cloudflare only
+
+`CLOUDFLARE_ONLY=yes` lets only Cloudflare's address ranges reach every port in `PUBLIC_TCP_PORTS` and `PUBLIC_UDP_PORTS`, refreshed daily, so nobody reaches the server around the proxy. It is off by default because it breaks anything not behind Cloudflare: direct visits, monitors, and certificate checks that connect straight to port 80, such as Let's Encrypt HTTP-01. Use a Cloudflare origin certificate or DNS-01 instead. If the ranges cannot be fetched the run stops, and a refresh that returns bad data keeps the ranges already in place. SSH is not affected. Cloudflare sees all web traffic either way, this only closes the way around it.

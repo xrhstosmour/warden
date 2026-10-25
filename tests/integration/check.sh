@@ -38,6 +38,9 @@ check "core dumps are off" sh -c 'grep -q "Storage=none" /etc/systemd/coredump.c
 check "sudo still parses" visudo -cq
 check "the SSH login hook is in the PAM stack exactly once" sh -c 'test "$(grep -c warden-alert-login /etc/pam.d/sshd)" = 1'
 check "unattended upgrades keep the edited PAM file" grep -q force-confold /etc/apt/apt.conf.d/52warden-confold
+check "Cloudflare ranges are in the firewall sets" sh -c 'nft list set inet warden cloudflare4 | grep -q 173.245.48.0/20 && nft list set inet warden cloudflare6 | grep -q 2400:cb00::/32'
+check "the Cloudflare sync timer is on" systemctl is-enabled warden-cloudflare-sync.timer
+check "the public ports answer the Cloudflare set" sh -c 'nft list ruleset | grep -q "ip saddr @cloudflare4 tcp dport"'
 check "the alert topic is readable by root alone" sh -c 'test "$(stat -c %a /var/lib/warden/ntfy-topic)" = 600'
 check "the login status is installed" test -f /etc/profile.d/warden-status.sh
 check "warden-audit is installed" test -x /usr/local/sbin/warden-audit

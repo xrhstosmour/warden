@@ -48,12 +48,16 @@ SSH_PORT=2222
 SWAP_SIZE=0
 ALERTS=ntfy
 NTFY_SERVER=https://ntfy.invalid
+CLOUDFLARE_ONLY=yes
 EOF
 
-COPYFILE_DISABLE=1 tar -C "$directory" -czf - install.sh library modules files tests/integration/check.sh |
+COPYFILE_DISABLE=1 tar -C "$directory" -czf - install.sh library modules files tests/integration/check.sh tests/integration/curl.sh |
     docker exec -i "$container" sh -c 'mkdir -p /root/warden && tar -xzf - -C /root/warden'
 docker cp "$temporary/warden.conf" "$container:/root/warden/warden.conf"
 rm -rf "$temporary"
+
+# The Cloudflare ranges come from a fixed list, the run needs no network for them.
+docker exec "$container" install -m 0755 /root/warden/tests/integration/curl.sh /usr/local/bin/curl
 
 # Docker Desktop's kernel has netfilter built in, but the container cannot
 # see the list of built-in modules a real host has on disk.
