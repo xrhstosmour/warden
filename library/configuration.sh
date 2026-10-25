@@ -20,6 +20,7 @@ TIMEZONE="${TIMEZONE:-UTC}"
 REBOOT_TIME="${REBOOT_TIME:-04:00}"
 SWAP_SIZE="${SWAP_SIZE:-2G}"
 ETCKEEPER="${ETCKEEPER:-yes}"
+LOGIN_STATUS="${LOGIN_STATUS:-yes}"
 
 # Source a configuration file. It is plain `KEY=value` lines, sourced as
 # bash, so it must be root's own file and nobody else's to write.
@@ -95,6 +96,7 @@ validate_configuration() {
     [[ "$REBOOT_TIME" =~ ^([01][0-9]|2[0-3]):[0-5][0-9]$ ]] || problems+=("REBOOT_TIME must be HH:MM.")
     [[ "$SWAP_SIZE" =~ ^([0-9]+[MG]|0)$ ]] || problems+=("SWAP_SIZE must be like 2G, 512M, or 0 for none.")
     [[ "$ETCKEEPER" =~ ^(yes|no)$ ]] || problems+=("ETCKEEPER must be yes or no.")
+    [[ "$LOGIN_STATUS" =~ ^(yes|no)$ ]] || problems+=("LOGIN_STATUS must be yes or no.")
 
     if ((${#problems[@]} > 0)); then
         printf '%s\n' "${problems[@]}" >&2

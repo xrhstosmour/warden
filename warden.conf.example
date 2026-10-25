@@ -55,3 +55,8 @@ SWAP_SIZE=2G
 # every change is a diff you can read and undo. The history can hold old
 # copies of anything that was ever in /etc, root alone can read it. no: off.
 ETCKEEPER=yes
+
+# yes: prints load, disk, failed units, a pending reboot and listening ports
+# on every interactive SSH login. It only reads local state, nothing leaves
+# the server. no: off.
+LOGIN_STATUS=yes

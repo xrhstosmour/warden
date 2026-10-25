@@ -13,6 +13,7 @@ Hardens a fresh Debian VPS for containers in one command, run from your own mach
 - Daily security updates and reboots in a quiet hour
 - Hardened kernel and network parameters, BBR
 - Encrypted time sync, capped logs, `auditd`, AppArmor, no core dumps
+- A status line on every SSH login, load, disk, failed units, a pending reboot, listening ports, off with `LOGIN_STATUS=no`
 - `/etc` kept in git with `etckeeper`, every change a commit you can read and undo, off with `ETCKEEPER=no`
 
 ## Use

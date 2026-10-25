@@ -28,7 +28,7 @@ warden hardens a fresh Debian 13 server for hosting containers. `install.sh` run
 All must pass before a commit:
 
 ```bash
-shellcheck -x -S style install.sh provision.sh keys.sh library/*.sh modules/*.sh tests/integration/*.sh
+shellcheck -x -S style install.sh provision.sh keys.sh library/*.sh modules/*.sh files/*.sh tests/integration/*.sh
 bats tests/
 tests/integration/run.sh
 ```
