@@ -86,3 +86,6 @@ NTFY_SERVER=https://ntfy.sh
 
 # Alert when / is this full, in percent, 50 to 99.
 ALERT_DISK_PERCENT=85
+
+# yes: also one alert per SSH login, with the user name only.
+ALERT_SSH_LOGIN=yes

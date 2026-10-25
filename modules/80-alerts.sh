@@ -5,10 +5,26 @@
 # commits it. A dead server sends nothing, this does not replace a monitor
 # outside it.
 
+pam_file=/etc/pam.d/sshd
+hook=/usr/local/sbin/warden-alert-login
+confold=/etc/apt/apt.conf.d/52warden-confold
+
+# Drop the login hook from the SSH PAM stack, a no-op when it is not there.
+remove_login_hook() {
+    rm -f "$confold"
+    grep -q "$hook" "$pam_file" || return 0
+    local temporary
+    temporary=$(mktemp)
+    grep -v "$hook" "$pam_file" >"$temporary"
+    place "$temporary" "$pam_file" 0644 || true
+    rm -f "$temporary"
+}
+
 if ! uses_alerts; then
     systemctl disable -q --now warden-alert-check.timer 2>/dev/null || true
     rm -f /etc/systemd/system/warden-alert-check.service /etc/systemd/system/warden-alert-check.timer \
-        /usr/local/sbin/warden-alert /usr/local/sbin/warden-alert-check /etc/warden/alerts.conf
+        /usr/local/sbin/warden-alert /usr/local/sbin/warden-alert-check "$hook" /etc/warden/alerts.conf
+    remove_login_hook
     log_info "Alerts are off, ALERTS=ntfy in warden.conf sends them to your phone."
     return 0
 fi
@@ -18,6 +34,7 @@ install -d -m 0700 /var/lib/warden
 
 place "$WARDEN_DIRECTORY/files/warden-alert.sh" /usr/local/sbin/warden-alert 0755 || true
 place "$WARDEN_DIRECTORY/files/warden-alert-check.sh" /usr/local/sbin/warden-alert-check 0755 || true
+place "$WARDEN_DIRECTORY/files/warden-alert-login.sh" "$hook" 0755 || true
 
 place_content /etc/warden/alerts.conf 0644 <<EOF || true
 # Managed by warden, local changes are overwritten on the next run.
@@ -57,6 +74,29 @@ WantedBy=timers.target
 EOF
 [[ "$changed" == true ]] && systemctl daemon-reload
 ensure_service warden-alert-check.timer
+
+if [[ "$ALERT_SSH_LOGIN" == "yes" ]]; then
+    if ! grep -q "$hook" "$pam_file"; then
+        temporary=$(mktemp)
+        cp "$pam_file" "$temporary"
+        # Optional, so a failing hook can never lock anyone out.
+        printf 'session optional pam_exec.so quiet %s\n' "$hook" >>"$temporary"
+        place "$temporary" "$pam_file" 0644 || true
+        rm -f "$temporary"
+    fi
+    # /etc/pam.d/sshd belongs to openssh-server. Without this, unattended
+    # upgrades hold the package back whenever a new version changes that file,
+    # so a security update would wait for someone to answer a prompt.
+    place_content "$confold" 0644 <<'EOF' || true
+// Managed by warden, local changes are overwritten on the next run.
+Dpkg::Options {
+    "--force-confdef";
+    "--force-confold";
+};
+EOF
+else
+    remove_login_hook
+fi
 
 if [[ "$generated" == true ]]; then
     /usr/local/sbin/warden-alert 3 "warden alerts" "Alerts are on for $(hostname)." "tada" || true

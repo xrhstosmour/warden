@@ -73,6 +73,60 @@ teardown() {
     ! grep -q 'X-Evil' <(grep '^header = ' "$work/curl-input")
 }
 
+# The hook has fixed paths and takes nothing from the environment, so the
+# tests run a copy with those paths pointed at a stub and a scratch directory.
+login_hook() {
+    sed "s|/usr/local/sbin/warden-alert|$work/alert|; s|/run/warden-alert|$work/stamp|" \
+        "$directory/warden-alert-login.sh" >"$work/login"
+    chmod +x "$work/login"
+    cat >"$work/alert" <<EOF
+#!/bin/bash
+echo "\$@" >>"$work/alert-calls"
+EOF
+    chmod +x "$work/alert"
+}
+
+wait_for_alerts() {
+    for _ in $(seq 1 25); do
+        [ "$(cat "$work/alert-calls" 2>/dev/null | wc -l)" -ge "$1" ] && return 0
+        sleep 0.2
+    done
+    return 1
+}
+
+@test "a login alert carries the user and never the client address" {
+    login_hook
+    PAM_TYPE=open_session PAM_USER=admin PAM_RHOST=198.51.100.7 run "$work/login"
+    [ "$status" -eq 0 ]
+    wait_for_alerts 1
+    grep -q 'admin logged in' "$work/alert-calls"
+    ! grep -q '198.51.100.7' "$work/alert-calls"
+}
+
+@test "a repeat login from one address within a minute is one alert, another address and a closed session differ" {
+    login_hook
+    PAM_TYPE=close_session PAM_USER=admin PAM_RHOST=198.51.100.7 run "$work/login"
+    PAM_TYPE=open_session PAM_USER=admin PAM_RHOST=198.51.100.7 run "$work/login"
+    PAM_TYPE=open_session PAM_USER=admin PAM_RHOST=198.51.100.7 run "$work/login"
+    wait_for_alerts 1
+    sleep 0.5
+    [ "$(wc -l <"$work/alert-calls")" -eq 1 ]
+
+    PAM_TYPE=open_session PAM_USER=admin PAM_RHOST=203.0.113.9 run "$work/login"
+    wait_for_alerts 2
+}
+
+@test "variables set by the logging in user cannot redirect the hook" {
+    login_hook
+    printf '#!/bin/bash\necho hijacked >"%s/hijacked"\n' "$work" >"$work/evil"
+    chmod +x "$work/evil"
+    WARDEN_ALERT="$work/evil" WARDEN_STAMP_DIRECTORY="$work/elsewhere" WARDEN_CONFIGURATION_DIRECTORY="$work/elsewhere" \
+        PAM_TYPE=open_session PAM_USER=admin PAM_RHOST=198.51.100.7 run "$work/login"
+    wait_for_alerts 1
+    [ ! -e "$work/hijacked" ]
+    [ ! -e "$work/elsewhere" ]
+}
+
 @test "a full disk alerts once and again when it recovers" {
     cat >"$work/alert" <<'EOF'
 #!/bin/bash

@@ -26,6 +26,7 @@ DOCKER_ADDRESS_POOL="${DOCKER_ADDRESS_POOL-172.30.0.0/16}"
 ALERTS="${ALERTS:-no}"
 NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
 ALERT_DISK_PERCENT="${ALERT_DISK_PERCENT:-85}"
+ALERT_SSH_LOGIN="${ALERT_SSH_LOGIN:-yes}"
 
 # Source a configuration file. It is plain `KEY=value` lines, sourced as
 # bash, so it must be root's own file and nobody else's to write.
@@ -132,6 +133,7 @@ validate_configuration() {
     [[ "$ALERTS" =~ ^(no|ntfy)$ ]] || problems+=("ALERTS must be no or ntfy.")
     [[ "$NTFY_SERVER" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || problems+=("NTFY_SERVER must be an https address, such as https://ntfy.sh.")
     [[ "$ALERT_DISK_PERCENT" =~ ^([5-9][0-9])$ ]] || problems+=("ALERT_DISK_PERCENT must be from 50 to 99.")
+    [[ "$ALERT_SSH_LOGIN" =~ ^(yes|no)$ ]] || problems+=("ALERT_SSH_LOGIN must be yes or no.")
     if [[ -n "$DOCKER_ADDRESS_POOL" ]] && ! is_private_pool "$DOCKER_ADDRESS_POOL"; then
         problems+=("DOCKER_ADDRESS_POOL must be a private IPv4 range from /8 to /24, such as 172.30.0.0/16, or empty for Docker's own.")
     fi

@@ -46,6 +46,8 @@ DEPLOY_USER=deploy
 DEPLOY_PUBLIC_KEY="$(cat "$temporary/deploy.pub")"
 SSH_PORT=2222
 SWAP_SIZE=0
+ALERTS=ntfy
+NTFY_SERVER=https://ntfy.invalid
 EOF
 
 COPYFILE_DISABLE=1 tar -C "$directory" -czf - install.sh library modules files tests/integration/check.sh |

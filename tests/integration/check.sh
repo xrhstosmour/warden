@@ -36,6 +36,9 @@ check "Docker runs rootless for deploy" sh -c 'sudo -u deploy -H XDG_RUNTIME_DIR
 check "a rootless container runs" sh -c 'sudo -u deploy -H XDG_RUNTIME_DIR=/run/user/$(id -u deploy) docker run --rm hello-world'
 check "core dumps are off" sh -c 'grep -q "Storage=none" /etc/systemd/coredump.conf.d/warden.conf'
 check "sudo still parses" visudo -cq
+check "the SSH login hook is in the PAM stack exactly once" sh -c 'test "$(grep -c warden-alert-login /etc/pam.d/sshd)" = 1'
+check "unattended upgrades keep the edited PAM file" grep -q force-confold /etc/apt/apt.conf.d/52warden-confold
+check "the alert topic is readable by root alone" sh -c 'test "$(stat -c %a /var/lib/warden/ntfy-topic)" = 600'
 check "the login status is installed" test -f /etc/profile.d/warden-status.sh
 check "warden-audit is installed" test -x /usr/local/sbin/warden-audit
 check "/etc is in git and committed" sh -c 'test -d /etc/.git && ! etckeeper unclean'
