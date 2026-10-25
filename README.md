@@ -46,6 +46,24 @@ What to know first:
 - `ALERT_SSH_LOGIN=yes` adds one line to `/etc/pam.d/sshd`, a file `openssh-server` owns. Warden also keeps your edited version on upgrades (`--force-confold`), because unattended upgrades otherwise hold the package back to ask which file to keep.
 - The topic lives in `/var/lib/warden`, outside `/etc`, so `etckeeper` never commits it.
 
+## Backups
+
+Off while `BACKUP_REPOSITORY` is empty. [restic](https://restic.net) encrypts and deduplicates on the server, so the target only ever holds ciphertext. It still sees that you back up, when, and how much.
+
+Pick a target in `warden.conf`:
+
+- `sftp:user@host:/path`: any SFTP host. A laptop reached over Tailscale works while it is awake and on, so treat it as a second copy.
+- `rclone:remote:path`: anything `rclone` reaches, such as Filen or Google Drive. Filen needs `rclone` 1.73 or newer, the Debian package may be older and warden warns when it is.
+
+The password and keys are made on your machine, never on the server. Name the files in `warden.conf` and `provision.sh` copies them to `/var/lib/warden/backup`, readable by root alone and outside `/etc`, so `etckeeper` never commits them.
+
+1. Make a long random restic password in a file, `openssl rand -base64 32 > ~/backup-password`, and keep a copy off the server, without it the backups cannot be read.
+2. For `sftp`, make a key for backups alone, `ssh-keygen -t ed25519 -f ~/backup-key`, and authorize its public half on the target.
+3. For `sftp`, get the target's host key with `ssh-keyscan -t ed25519 <host>`, add `-p <port>` for a port other than 22, check its fingerprint, and paste the line into `BACKUP_HOST_KEY`. It must start with the host, or `[host]:port` for another port, as in `BACKUP_REPOSITORY`. The host is never trusted blindly.
+4. Run warden. After SSH has moved, the first run starts the repository, takes a backup and restores one file to prove it works, in 8 minutes at most so the SSH rollback timer cannot fire first. A backup cut short carries on in the daily timer. Every later run repeats the restore test. If anything fails it says so loudly and carries on, the hardening is not held up by the target.
+
+Backups run daily at `BACKUP_TIME` and `/etc` is always included. A weekly `restic check` looks for a damaged repository. Databases need a dump first, a copy of live database files may not restore. Docker images are skipped. A failed backup sends an alert when alerts are on. The uploaded password, key and `rclone.conf` are deleted from warden's directory once placed. The server holds the credentials to prune the repository, so someone who takes over the server can delete its backups too, keep a second copy on a target the server cannot write to, or use snapshots on the target.
+
 ## Cloudflare only
 
 `CLOUDFLARE_ONLY=yes` lets only Cloudflare's address ranges reach every port in `PUBLIC_TCP_PORTS` and `PUBLIC_UDP_PORTS`, refreshed daily, so nobody reaches the server around the proxy. It is off by default because it breaks anything not behind Cloudflare: direct visits, monitors, and certificate checks that connect straight to port 80, such as Let's Encrypt HTTP-01. Use a Cloudflare origin certificate or DNS-01 instead. If the ranges cannot be fetched the run stops, and a refresh that returns bad data keeps the ranges already in place. SSH is not affected. Cloudflare sees all web traffic either way, this only closes the way around it.

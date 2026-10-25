@@ -49,12 +49,21 @@ SWAP_SIZE=0
 ALERTS=ntfy
 NTFY_SERVER=https://ntfy.invalid
 CLOUDFLARE_ONLY=yes
+BACKUP_REPOSITORY=rclone:local:/srv/backups
+BACKUP_PASSWORD_FILE=/root/warden/secrets/password
+BACKUP_RCLONE_CONFIG_FILE=/root/warden/secrets/rclone.conf
 EOF
 
 COPYFILE_DISABLE=1 tar -C "$directory" -czf - install.sh library modules files tests/integration/check.sh tests/integration/curl.sh |
     docker exec -i "$container" sh -c 'mkdir -p /root/warden && tar -xzf - -C /root/warden'
 docker cp "$temporary/warden.conf" "$container:/root/warden/warden.conf"
 rm -rf "$temporary"
+
+# /etc/hostname is a bind mount here, the backup stays on one filesystem and
+# skips it, so the restore test reads /etc/passwd instead.
+# The backup secrets, as provision.sh uploads them. rclone writes to a folder
+# on the disk, no remote host is needed to prove the whole path.
+docker exec "$container" sh -c 'mkdir -p /root/warden/secrets && head -c 24 /dev/urandom | base64 >/root/warden/secrets/password && printf "[local]\ntype = local\n" >/root/warden/secrets/rclone.conf'
 
 # The Cloudflare ranges come from a fixed list, the run needs no network for them.
 docker exec "$container" install -m 0755 /root/warden/tests/integration/curl.sh /usr/local/bin/curl
@@ -67,10 +76,10 @@ docker exec "$container" sh -c 'mkdir -p "/lib/modules/$(uname -r)" && echo kern
 docker exec "$container" sh -c 'useradd -m -s /bin/bash -G sudo admin && echo "admin:integration-only" | chpasswd'
 
 echo "First run."
-docker exec "$container" bash /root/warden/install.sh /root/warden/warden.conf
+docker exec -e WARDEN_VERIFY_FILE=/etc/passwd "$container" bash /root/warden/install.sh /root/warden/warden.conf
 
 echo "Second run, must change nothing."
-second=$(docker exec "$container" bash /root/warden/install.sh /root/warden/warden.conf 2>&1)
+second=$(docker exec -e WARDEN_VERIFY_FILE=/etc/passwd "$container" bash /root/warden/install.sh /root/warden/warden.conf 2>&1)
 echo "$second"
 if grep -E "Updated |Installing |Created |Masked |Removed |Added " <<<"$second"; then
     echo "The second run changed something, warden is not idempotent." >&2

@@ -82,10 +82,31 @@ ssh "${ssh_options[@]}" "$target" "rm -rf $upload && umask 077 && mkdir $upload"
 # No macOS resource fork files in the archive.
 COPYFILE_DISABLE=1 tar -C "$WARDEN_DIRECTORY" -czf - install.sh library modules files |
     ssh "${ssh_options[@]}" "$target" "umask 077 && tar -xzf - -C $upload"
+
+# The backup password and keys are made on this machine. They travel with the
+# upload, readable by root alone, and the configuration below points at them.
+backup_overrides=""
+copy_backup_secret() {
+    local variable="$1"
+    local name="$2"
+    local source="${!variable}"
+    [[ -n "$source" ]] || return 0
+    source="${source/#\~/$HOME}"
+    [[ -f "$source" ]] || fail "$source is missing, $variable names it in warden.conf."
+    ssh "${ssh_options[@]}" "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$name" <"$source"
+    backup_overrides+="$variable=\"$remote_directory/secrets/$name\""$'\n'
+}
+if uses_backups; then
+    copy_backup_secret BACKUP_PASSWORD_FILE password
+    copy_backup_secret BACKUP_SSH_KEY_FILE key
+    copy_backup_secret BACKUP_RCLONE_CONFIG_FILE rclone.conf
+fi
+
 # The keys made above follow the file's own lines, and so win over them.
 {
     cat "$configuration"
     printf '\nADMIN_PUBLIC_KEY="%s"\nDEPLOY_PUBLIC_KEY="%s"\n' "$ADMIN_PUBLIC_KEY" "$DEPLOY_PUBLIC_KEY"
+    printf '%s' "$backup_overrides"
 } | ssh "${ssh_options[@]}" "$target" "umask 077 && cat > $upload/warden.conf"
 
 log_info "Running warden on $host."
