@@ -83,3 +83,6 @@ ALERTS=no
 
 # https://ntfy.sh is the public server. Your own ntfy server works the same.
 NTFY_SERVER=https://ntfy.sh
+
+# Alert when / is this full, in percent, 50 to 99.
+ALERT_DISK_PERCENT=85

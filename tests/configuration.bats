@@ -18,6 +18,7 @@ setup() {
     DOCKER_ADDRESS_POOL=172.30.0.0/16
     ALERTS=no
     NTFY_SERVER=https://ntfy.sh
+    ALERT_DISK_PERCENT=85
 }
 
 @test "a complete configuration passes" {
@@ -145,7 +146,7 @@ setup() {
 }
 
 @test "alerts accept only no or ntfy, over https, with a sensible disk threshold" {
-    for assignment in ALERTS=signal NTFY_SERVER=http://ntfy.sh NTFY_SERVER=ntfy.sh; do
+    for assignment in ALERTS=signal NTFY_SERVER=http://ntfy.sh NTFY_SERVER=ntfy.sh ALERT_DISK_PERCENT=10 ALERT_DISK_PERCENT=100; do
         setup
         printf -v "${assignment%%=*}" '%s' "${assignment#*=}"
         run validate_configuration

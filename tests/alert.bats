@@ -72,3 +72,73 @@ teardown() {
     [ "$(grep -c '^header = ' "$work/curl-input")" -eq 3 ]
     ! grep -q 'X-Evil' <(grep '^header = ' "$work/curl-input")
 }
+
+@test "a full disk alerts once and again when it recovers" {
+    cat >"$work/alert" <<'EOF'
+#!/bin/bash
+echo "$1 $2" >>"$WORK/alert-calls"
+EOF
+    cat >"$work/bin/df" <<'EOF'
+#!/bin/bash
+printf 'Use%%\n %s%%\n' "$(cat "$WORK/usage")"
+EOF
+    printf '#!/bin/bash\n' >"$work/bin/systemctl"
+    chmod +x "$work/alert" "$work/bin/df" "$work/bin/systemctl"
+    export WARDEN_ALERT="$work/alert"
+
+    echo 91 >"$work/usage"
+    run "$directory/warden-alert-check.sh"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Disk almost full' "$work/alert-calls")" -eq 1 ]
+
+    echo 40 >"$work/usage"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Disk space back' "$work/alert-calls")" -eq 1 ]
+}
+
+@test "a failed unit alerts once and again when it is healthy" {
+    cat >"$work/alert" <<'EOF'
+#!/bin/bash
+echo "$1 $2" >>"$WORK/alert-calls"
+EOF
+    cat >"$work/bin/df" <<'EOF'
+#!/bin/bash
+printf 'Use%%\n 10%%\n'
+EOF
+    cat >"$work/bin/systemctl" <<'EOF'
+#!/bin/bash
+cat "$WORK/failed" 2>/dev/null
+EOF
+    chmod +x "$work/alert" "$work/bin/df" "$work/bin/systemctl"
+    export WARDEN_ALERT="$work/alert"
+
+    echo "nginx.service loaded failed failed Web server" >"$work/failed"
+    run "$directory/warden-alert-check.sh"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Unit failed' "$work/alert-calls")" -eq 1 ]
+
+    : >"$work/failed"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Units healthy' "$work/alert-calls")" -eq 1 ]
+}
+
+@test "an alert that did not go out is sent again on the next check" {
+    cat >"$work/alert" <<'EOF'
+#!/bin/bash
+echo "$1 $2" >>"$WORK/alert-calls"
+[ -f "$WORK/sends-work" ]
+EOF
+    cat >"$work/bin/df" <<'EOF'
+#!/bin/bash
+printf 'Use%%\n 91%%\n'
+EOF
+    printf '#!/bin/bash\n' >"$work/bin/systemctl"
+    chmod +x "$work/alert" "$work/bin/df" "$work/bin/systemctl"
+    export WARDEN_ALERT="$work/alert"
+
+    run "$directory/warden-alert-check.sh"
+    touch "$work/sends-work"
+    run "$directory/warden-alert-check.sh"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Disk almost full' "$work/alert-calls")" -eq 2 ]
+}
