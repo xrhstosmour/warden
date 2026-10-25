@@ -50,3 +50,8 @@ REBOOT_TIME="04:00"
 
 # Swap file size when the server has no swap, 0 for none.
 SWAP_SIZE=2G
+
+# yes: keeps /etc in git with etckeeper and commits what warden changed, so
+# every change is a diff you can read and undo. The history can hold old
+# copies of anything that was ever in /etc, root alone can read it. no: off.
+ETCKEEPER=yes

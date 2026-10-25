@@ -12,6 +12,7 @@ setup() {
     SSH_ACCESS=public
     TAILSCALE_AUTH_KEY=""
     TAILSCALE_SSH=no
+    ETCKEEPER=yes
 }
 
 @test "a complete configuration passes" {
@@ -103,6 +104,13 @@ setup() {
     run validate_configuration
     [ "$status" -eq 1 ]
     [[ "$output" == *"exclude each other"* ]]
+}
+
+@test "etckeeper accepts only yes or no" {
+    ETCKEEPER=maybe
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ETCKEEPER"* ]]
 }
 
 @test "Tailscale is used only when asked for" {
