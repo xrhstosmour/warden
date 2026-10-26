@@ -46,6 +46,7 @@ check "the first backup made a snapshot" /usr/local/sbin/warden-backup has-snaps
 check "a backup restores" env WARDEN_VERIFY_FILE=/etc/passwd /usr/local/sbin/warden-backup verify
 check "the backup secrets are readable by root alone" sh -c 'test "$(stat -c %a /var/lib/warden/backup/password)" = 600 && test "$(stat -c %a /var/lib/warden/backup/rclone.conf)" = 600'
 check "the uploaded backup secrets are deleted" sh -c '! test -e /root/warden/secrets/password && ! test -e /root/warden/secrets/rclone.conf'
+check "br_netfilter loads at boot for rootless Docker" grep -qx br_netfilter /etc/modules-load.d/warden-docker.conf
 check "the alert topic is readable by root alone" sh -c 'test "$(stat -c %a /var/lib/warden/ntfy-topic)" = 600'
 check "the login status is installed" test -f /etc/profile.d/warden-status.sh
 check "warden-audit is installed" test -x /usr/local/sbin/warden-audit
