@@ -13,6 +13,7 @@ SSH_SOURCES="${SSH_SOURCES:-}"
 SSH_ACCESS="${SSH_ACCESS:-public}"
 TAILSCALE_AUTH_KEY="${TAILSCALE_AUTH_KEY:-}"
 TAILSCALE_SSH="${TAILSCALE_SSH:-no}"
+TAILSCALE_TAG="${TAILSCALE_TAG:-}"
 PUBLIC_TCP_PORTS="${PUBLIC_TCP_PORTS:-80 443}"
 PUBLIC_UDP_PORTS="${PUBLIC_UDP_PORTS:-443}"
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-}"
@@ -112,6 +113,12 @@ is_port() {
     [[ "$1" =~ ^[0-9]{1,5}$ ]] && (("$1" >= 1 && "$1" <= 65535))
 }
 
+# Whether the JSON of `tailscale status --json`, on standard input, lists the
+# given tag on this machine.
+has_tailscale_tag() {
+    python3 -c 'import json, sys; sys.exit(0 if sys.argv[1] in (json.load(sys.stdin)["Self"].get("Tags") or []) else 1)' "$1"
+}
+
 # Print every problem, then return non-zero if there was any, so one run
 # shows the whole list instead of one mistake at a time.
 validate_configuration() {
@@ -141,6 +148,11 @@ validate_configuration() {
     [[ "$TAILSCALE_SSH" =~ ^(yes|no)$ ]] || problems+=("TAILSCALE_SSH must be yes or no.")
     if [[ -n "$TAILSCALE_AUTH_KEY" && ! "$TAILSCALE_AUTH_KEY" =~ ^tskey-[A-Za-z0-9-]+$ ]]; then
         problems+=("TAILSCALE_AUTH_KEY must be a Tailscale auth key, tskey-auth-...")
+    fi
+    # No default, an untagged machine of the owner counts as a personal device
+    # in the tailnet policy and reaches everything.
+    if uses_tailscale && [[ ! "$TAILSCALE_TAG" =~ ^tag:(server|web|shared|internal)$ ]]; then
+        problems+=("TAILSCALE_TAG must be tag:server, tag:web, tag:shared or tag:internal, a server without a tag gets the access of a personal device.")
     fi
     if [[ "$SSH_ACCESS" == "tailscale" && -n "$SSH_SOURCES" ]]; then
         problems+=("SSH_SOURCES and SSH_ACCESS=tailscale exclude each other, the tailnet decides who reaches SSH.")
@@ -218,7 +230,7 @@ describe_features() {
     print_feature "etckeeper" "$([[ "$ETCKEEPER" == yes ]] && echo on || echo off)" "ETCKEEPER, /etc in git"
     print_feature "login status" "$([[ "$LOGIN_STATUS" == yes ]] && echo on || echo off)" "LOGIN_STATUS, a status line on SSH login"
     print_feature "warden-audit" "$([[ "$AUDIT_TOOL" == yes ]] && echo on || echo off)" "AUDIT_TOOL, sudo warden-audit"
-    print_feature "Tailscale" "$(uses_tailscale && echo on || echo off)" "SSH_ACCESS, TAILSCALE_SSH, TAILSCALE_AUTH_KEY"
+    print_feature "Tailscale" "$(uses_tailscale && echo on || echo off)" "SSH_ACCESS, TAILSCALE_SSH, TAILSCALE_AUTH_KEY, TAILSCALE_TAG"
     print_feature "Docker address pool" "$(uses_docker_pool && echo on || echo off)" "DOCKER_ADDRESS_POOL=${DOCKER_ADDRESS_POOL:-the Docker default}"
     print_feature "alerts" "$(uses_alerts && echo on || echo off)" "ALERTS=ntfy, phone alerts for disk, units and SSH logins"
     print_feature "backups" "$(uses_backups && echo on || echo off)" "BACKUP_REPOSITORY, encrypted restic backups"
