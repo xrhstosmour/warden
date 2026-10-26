@@ -88,18 +88,21 @@ if ((rootlesskit_major >= 3)); then
 fi
 
 configuration_changed=false
-install -d -m 0700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$deploy_home/.config" "$deploy_home/.config/docker"
-if printf '{\n    %s\n}\n' "$daemon_options" | place_content "$deploy_home/.config/docker/daemon.json" 0600; then
+# The deploy user owns these paths and could swap one for a link at any time.
+# Everything in them is made as that user, so a swapped link can only reach
+# what the user could already reach.
+as_owner() { runuser -u "$DEPLOY_USER" -- "$@"; }
+as_owner install -d -m 0700 "$deploy_home/.config" "$deploy_home/.config/docker"
+if printf '{\n    %s\n}\n' "$daemon_options" | place_as_owner "$DEPLOY_USER" "$deploy_home/.config/docker/daemon.json" 0600; then
     configuration_changed=true
 fi
-chown "$DEPLOY_USER:$DEPLOY_USER" "$deploy_home/.config/docker/daemon.json"
 
 override="$deploy_home/.config/systemd/user/docker.service.d/override.conf"
 if ((rootlesskit_major < 3)); then
-    install -d -m 0700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" \
+    as_owner install -d -m 0700 \
         "$deploy_home/.config/systemd" "$deploy_home/.config/systemd/user" \
         "$deploy_home/.config/systemd/user/docker.service.d"
-    if place_content "$override" 0644 <<'EOF'; then
+    if place_as_owner "$DEPLOY_USER" "$override" 0644 <<'EOF'; then
 # Managed by warden, local changes are overwritten on the next run.
 [Service]
 Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_NET=slirp4netns"
@@ -107,7 +110,6 @@ Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER=slirp4netns"
 EOF
         configuration_changed=true
     fi
-    chown "$DEPLOY_USER:$DEPLOY_USER" "$override"
 fi
 
 # Docker 29 will not create its bridge network unless this module is loaded,

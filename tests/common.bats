@@ -54,3 +54,29 @@ EOF
     [ "$status" -eq 0 ]
     [ "$(cat "$TARGET")" = "two" ]
 }
+
+@test "a file in a directory its owner controls is written as that owner" {
+    stat -c %a / >/dev/null 2>&1 || skip "needs GNU stat"
+    # Without root `runuser` cannot switch user, a stand-in records who it
+    # was asked to run as and runs the command as the test user.
+    cat >"$STUB/runuser" <<EOF
+#!/bin/bash
+echo "\$2" >>"$BATS_TEST_TMPDIR/runuser-users"
+shift 3
+exec "\$@"
+EOF
+    chmod +x "$STUB/runuser"
+    run bash -c 'source "$1"; PATH="$2:$PATH"; echo key | place_as_owner deploy "$3" 0600' _ \
+        "$BATS_TEST_DIRNAME/../library/common.sh" "$STUB" "$TARGET"
+    [ "$status" -eq 0 ]
+    run bash -c 'source "$1"; PATH="$2:$PATH"; echo key | place_as_owner deploy "$3" 0600' _ \
+        "$BATS_TEST_DIRNAME/../library/common.sh" "$STUB" "$TARGET"
+    [ "$status" -eq 1 ]
+    run bash -c 'source "$1"; PATH="$2:$PATH"; echo other | place_as_owner deploy "$3" 0600' _ \
+        "$BATS_TEST_DIRNAME/../library/common.sh" "$STUB" "$TARGET"
+    [ "$status" -eq 0 ]
+    [ "$(cat "$TARGET")" = "other" ]
+    [ "$(stat -c %a "$TARGET")" = "600" ]
+    # Every read and write went through the owner, none as root.
+    [ "$(sort -u "$BATS_TEST_TMPDIR/runuser-users")" = "deploy" ]
+}

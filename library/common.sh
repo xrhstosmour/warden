@@ -52,6 +52,31 @@ place_content() {
     return "$status"
 }
 
+# Same as `place_content`, for a file in a directory its owner controls. The
+# owner could swap the directory for a link between root's check and root's
+# write, so the write is made as the owner and reaches nothing more than the
+# owner could. Returns 0 when it changed something, 1 when it was already right.
+place_as_owner() {
+    local user="$1"
+    local target="$2"
+    local mode="${3:-0644}"
+    local temporary
+    temporary=$(mktemp)
+    cat >"$temporary"
+    # Read by the owner, and never holds more than a public key or a setting.
+    chmod 0644 "$temporary"
+
+    local status=1
+    if ! { runuser -u "$user" -- cmp -s "$temporary" "$target" &&
+        [[ "$(runuser -u "$user" -- stat -c '%a' "$target")" == "${mode#0}" ]]; }; then
+        runuser -u "$user" -- install -m "$mode" "$temporary" "$target"
+        log_info "Updated $target."
+        status=0
+    fi
+    rm -f "$temporary"
+    return "$status"
+}
+
 # The primary key fingerprint of an OpenPGP key file.
 key_fingerprint() {
     gpg --show-keys --with-colons "$1" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }'
