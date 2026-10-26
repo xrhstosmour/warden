@@ -14,6 +14,8 @@ export WARDEN_DIRECTORY
 
 # shellcheck source=library/common.sh
 source "$WARDEN_DIRECTORY/library/common.sh"
+# shellcheck source=library/backups.sh
+source "$WARDEN_DIRECTORY/library/backups.sh"
 # shellcheck source=library/configuration.sh
 source "$WARDEN_DIRECTORY/library/configuration.sh"
 # shellcheck source=library/render.sh

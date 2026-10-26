@@ -36,7 +36,12 @@ EOF
 #!/bin/bash
 echo "$@" >>"$WORK/alert-calls"
 EOF
-    chmod +x "$work/bin/restic" "$work/alert"
+    # A flock that records its call, the real one is not on every machine.
+    cat >"$work/bin/flock" <<'EOF'
+#!/bin/bash
+echo "$@" >>"$WORK/flock-calls"
+EOF
+    chmod +x "$work/bin/restic" "$work/alert" "$work/bin/flock"
     export PATH="$work/bin:$PATH"
     echo "app-1" >"$work/hostname"
     export WARDEN_VERIFY_FILE="$work/hostname"
@@ -52,6 +57,37 @@ teardown() {
     grep -q 'StrictHostKeyChecking=yes' "$work/restic-arguments"
     grep -q "UserKnownHostsFile=$work/state/backup/known_hosts" "$work/restic-arguments"
     grep -q 'backup@laptop' "$work/restic-arguments"
+}
+
+@test "a backup never waits forever on a dead connection" {
+    run "$script" backup
+    grep -q 'ServerAliveInterval=30' "$work/restic-arguments"
+    grep -q 'ServerAliveCountMax=4' "$work/restic-arguments"
+}
+
+@test "the daily backup forgets old snapshots and leaves the prune to the weekly check" {
+    run "$script" backup
+    grep -q ' forget ' "$work/restic-arguments"
+    [ -z "$(grep -e '--prune' -e ' prune$' "$work/restic-arguments")" ]
+    run "$script" check
+    [ "$status" -eq 0 ]
+    grep -q ' prune$' "$work/restic-arguments"
+    grep -q ' check$' "$work/restic-arguments"
+    # A damaged repository is found before anything rewrites it.
+    [ "$(grep -n ' check$' "$work/restic-arguments" | tail -1 | cut -d: -f1)" -lt "$(grep -n ' prune$' "$work/restic-arguments" | tail -1 | cut -d: -f1)" ]
+}
+
+@test "every command that reads or changes snapshots takes the same lock" {
+    for command in backup check verify has-snapshots; do
+        run "$script" "$command"
+    done
+    [ "$(wc -l <"$work/flock-calls")" -eq 4 ]
+    [ -f "$work/state/backup.lock" ]
+}
+
+@test "starting the repository takes no lock" {
+    run "$script" init
+    [ ! -e "$work/flock-calls" ]
 }
 
 @test "the password travels as a file path, never in the arguments" {

@@ -75,9 +75,12 @@ uses_backups() {
     [[ -n "$BACKUP_REPOSITORY" ]]
 }
 
-# A public key line as `ssh-keygen` writes it, with an optional comment.
+# A public key line as `ssh-keygen` writes it, with an optional comment. The
+# comment is limited to characters the shell leaves alone, because the server
+# sources the line as bash before it validates anything. `provision.sh` runs
+# this check on the operator's machine first, and quotes the line with `%q`.
 is_public_key() {
-    [[ "$1" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-nistp(256|384|521)|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)\ [A-Za-z0-9+/]+={0,3}(\ [^[:cntrl:]]*)?$ ]]
+    [[ "$1" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-nistp(256|384|521)|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)\ [A-Za-z0-9+/]+={0,3}(\ [A-Za-z0-9@._+=:/\ -]*)?$ ]]
 }
 
 is_username() {
@@ -215,6 +218,7 @@ describe_features() {
     print_feature "etckeeper" "$([[ "$ETCKEEPER" == yes ]] && echo on || echo off)" "ETCKEEPER, /etc in git"
     print_feature "login status" "$([[ "$LOGIN_STATUS" == yes ]] && echo on || echo off)" "LOGIN_STATUS, a status line on SSH login"
     print_feature "warden-audit" "$([[ "$AUDIT_TOOL" == yes ]] && echo on || echo off)" "AUDIT_TOOL, sudo warden-audit"
+    print_feature "Tailscale" "$(uses_tailscale && echo on || echo off)" "SSH_ACCESS, TAILSCALE_SSH, TAILSCALE_AUTH_KEY"
     print_feature "Docker address pool" "$(uses_docker_pool && echo on || echo off)" "DOCKER_ADDRESS_POOL=${DOCKER_ADDRESS_POOL:-the Docker default}"
     print_feature "alerts" "$(uses_alerts && echo on || echo off)" "ALERTS=ntfy, phone alerts for disk, units and SSH logins"
     print_feature "backups" "$(uses_backups && echo on || echo off)" "BACKUP_REPOSITORY, encrypted restic backups"

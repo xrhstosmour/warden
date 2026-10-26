@@ -75,6 +75,15 @@ setup() {
     [[ "$output" == *"ADMIN_PUBLIC_KEY"* ]]
 }
 
+@test "a key comment the shell would expand is refused" {
+    for comment in 'x$(touch /tmp/pwned)' 'x`id`' 'x"y' 'x;y' 'x$HOME'; do
+        ADMIN_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOSWAHsCf+sZ6GEGPlRvVDuNAa/vjrxWpqgaFxT/Dsxt $comment"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"ADMIN_PUBLIC_KEY"* ]]
+    done
+}
+
 @test "SSH cannot share a public port" {
     SSH_PORT=8443
     PUBLIC_TCP_PORTS="80 443 8443"
@@ -235,6 +244,24 @@ setup() {
     done
 }
 
+@test "values written into system files refuse anything the shell or a file format would read" {
+    # Each case is the assignment, then the text its problem line must carry
+    # when that is not the variable name.
+    for case in 'SWAP_SIZE=2G;reboot' 'SWAP_SIZE=two' 'SERVER_HOSTNAME=a.b' 'SERVER_HOSTNAME=a b' \
+        'PUBLIC_UDP_PORTS=443;x|Public port' 'PUBLIC_TCP_PORTS=80 x|Public port' 'REBOOT_TIME=4am' 'TIMEZONE=UTC;x' \
+        $'BACKUP_REPOSITORY=sftp:backup@laptop:/srv\nX=1' \
+        'NTFY_SERVER=https://ntfy.sh/x;y' 'DOCKER_ADDRESS_POOL=10.0.0.0/16;x'; do
+        assignment="${case%%|*}"
+        expected="${assignment%%=*}"
+        [[ "$case" == *"|"* ]] && expected="${case#*|}"
+        setup
+        printf -v "${assignment%%=*}" '%s' "${assignment#*=}"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"$expected"* ]]
+    done
+}
+
 @test "Tailscale is used only when asked for" {
     run uses_tailscale
     [ "$status" -eq 1 ]
@@ -249,6 +276,11 @@ setup() {
     [[ "$output" == *"etckeeper"*"on"* ]]
     [[ "$output" == *"alerts"*"off"*"ALERTS=ntfy"* ]]
     [[ "$output" == *"backups"*"off"*"BACKUP_REPOSITORY"* ]]
+    [[ "$output" == *"Tailscale"*"off"*"SSH_ACCESS"* ]]
+    TAILSCALE_AUTH_KEY="tskey-auth-k1a2b3-c4d5e6"
+    run describe_features
+    [[ "$output" == *"Tailscale"*"on"* ]]
+    TAILSCALE_AUTH_KEY=""
     ALERTS=ntfy
     BACKUP_REPOSITORY=sftp:backup@laptop:/srv/warden
     CLOUDFLARE_ONLY=yes

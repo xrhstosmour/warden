@@ -116,6 +116,16 @@ wait_for_alerts() {
     wait_for_alerts 2
 }
 
+@test "login stamps older than an hour are removed, recent ones stay" {
+    login_hook
+    mkdir -p "$work/stamp"
+    touch -t 202001010000 "$work/stamp/login-old-0000"
+    touch "$work/stamp/login-recent-0000"
+    PAM_TYPE=open_session PAM_USER=admin PAM_RHOST=198.51.100.7 run "$work/login"
+    [ ! -e "$work/stamp/login-old-0000" ]
+    [ -e "$work/stamp/login-recent-0000" ]
+}
+
 @test "variables set by the logging in user cannot redirect the hook" {
     login_hook
     printf '#!/bin/bash\necho hijacked >"%s/hijacked"\n' "$work" >"$work/evil"

@@ -169,9 +169,13 @@ PerSourcePenalties yes
 LogLevel VERBOSE
 
 # The admin may tunnel to services bound to this machine's loopback, such
-# as a database console, without publishing them.
+# as a database console, without publishing them. Without PermitOpen, a
+# stolen admin key could also reach whatever this machine can, such as the
+# provider's metadata address. sshd matches the host as the client wrote it,
+# so localhost is listed besides the addresses.
 Match User $ADMIN_USER
     AllowTcpForwarding local
+    PermitOpen localhost:* 127.0.0.1:* [::1]:*
 EOF
 }
 

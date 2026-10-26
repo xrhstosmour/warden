@@ -24,13 +24,27 @@ sshd_value() { sshd -T 2>/dev/null | awk -v key="$1" '$1 == key { print $2; exit
 check "SSH listens on 2222" test "$(sshd_value port)" = 2222
 check "SSH refuses root" test "$(sshd_value permitrootlogin)" = no
 check "SSH refuses passwords" test "$(sshd_value passwordauthentication)" = no
+check "SSH takes keys alone" test "$(sshd_value authenticationmethods)" = publickey
+check "SSH refuses keyboard interactive logins" test "$(sshd_value kbdinteractiveauthentication)" = no
+check "SSH forwards no ports by default" test "$(sshd_value allowtcpforwarding)" = no
+check "SSH forwards no agent" test "$(sshd_value allowagentforwarding)" = no
+check "SSH lets the admin in" sh -c 'sshd -T | grep "^allowusers " | grep -qw admin'
+check "SSH lets the deploy user in" sh -c 'sshd -T | grep "^allowusers " | grep -qw deploy'
+check "SSH lets nobody else in" sh -c '[ "$(sshd -T | grep -c "^allowusers ")" = 2 ]'
+check "fail2ban watches the port SSH listens on" grep -qx "port = 2222" /etc/fail2ban/jail.d/warden.local
 check "the firewall drops inbound by default" sh -c 'nft list chain inet warden input | grep -q "policy drop"'
 check "the firewall no longer opens port 22" sh -c '! nft list chain inet warden input | grep -qE "dport (22 |\{ ([0-9]+, )*22[ ,])"'
 check "fail2ban watches SSH" fail2ban-client status sshd
 check "chrony runs" systemctl is-active chrony
 check "unattended upgrades are on" systemctl is-enabled unattended-upgrades
 check "the deploy user has no sudo" sh -c '! id -nG deploy | grep -qw sudo'
+check "the deploy user is not in the docker group" sh -c '! id -nG deploy | grep -qw docker'
+check "the deploy user is not in the adm group" sh -c '! id -nG deploy | grep -qw adm'
+check "nobody is in the docker group" sh -c '[ -z "$(getent group docker | cut -d: -f4)" ]'
 check "the deploy password is locked" sh -c 'passwd -S deploy | grep -q " L "'
+check "unprivileged user namespaces stay on for rootless Docker" sh -c '[ "$(sysctl -n user.max_user_namespaces)" -gt 0 ]'
+check "the hardened kernel parameters are installed" sh -c 'grep -qx "kernel.kptr_restrict = 2" /etc/sysctl.d/90-warden.conf && grep -qx "net.ipv4.conf.all.rp_filter = 1" /etc/sysctl.d/90-warden.conf && grep -qx "fs.protected_symlinks = 1" /etc/sysctl.d/90-warden.conf'
+check "no sysctl file turns user namespaces off" sh -c '! grep -rqE "^(user.max_user_namespaces *= *0|kernel.unprivileged_userns_clone *= *0)" /etc/sysctl.d /etc/sysctl.conf'
 check "the system Docker daemon is masked" sh -c 'test "$(systemctl is-enabled docker.service)" = masked'
 check "Docker runs rootless for deploy" sh -c 'sudo -u deploy -H XDG_RUNTIME_DIR=/run/user/$(id -u deploy) docker info --format "{{.SecurityOptions}}" | grep -q rootless'
 check "a rootless container runs" sh -c 'sudo -u deploy -H XDG_RUNTIME_DIR=/run/user/$(id -u deploy) docker run --rm hello-world'

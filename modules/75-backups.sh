@@ -23,11 +23,6 @@ install -d -m 0700 /var/lib/warden "$secrets"
 install_packages restic
 if [[ "$BACKUP_REPOSITORY" == rclone:* ]]; then
     install_packages rclone
-    # Filen's backend arrived in rclone 1.73, Debian's package may be older.
-    rclone_version=$(rclone version 2>/dev/null | awk 'NR == 1 { sub(/^v/, "", $2); print $2 }')
-    if [[ "$(printf '%s\n1.73.0\n' "${rclone_version:-0}" | sort -V | head -1)" != "1.73.0" ]]; then
-        log_warning "rclone ${rclone_version:-unknown} is older than 1.73, a newer backend such as Filen may be missing from it."
-    fi
 fi
 
 # Copies a secret the operator supplied into place, root only. A file already
@@ -63,6 +58,15 @@ if [[ "$BACKUP_REPOSITORY" == sftp:* ]]; then
     printf '%s\n' "$BACKUP_HOST_KEY" | place_content "$secrets/known_hosts" 0600 || true
 else
     place_secret "$BACKUP_RCLONE_CONFIG_FILE" "$secrets/rclone.conf"
+    # Filen's backend arrived in rclone 1.73, Debian's package is older. Only
+    # a remote of that type is affected, so only that one is warned about.
+    remote="${BACKUP_REPOSITORY#rclone:}"
+    if [[ "$(rclone_remote_type "$secrets/rclone.conf" "${remote%%:*}")" == "filen" ]]; then
+        rclone_version=$(rclone version 2>/dev/null | awk 'NR == 1 { sub(/^v/, "", $2); print $2 }')
+        if [[ "$(printf '%s\n1.73.0\n' "${rclone_version:-0}" | sort -V | head -1)" != "1.73.0" ]]; then
+            log_warning "rclone ${rclone_version:-unknown} is older than 1.73 and has no Filen backend, install a newer rclone."
+        fi
+    fi
 fi
 
 place "$WARDEN_DIRECTORY/files/warden-backup.sh" /usr/local/sbin/warden-backup 0755 || true
@@ -87,6 +91,10 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/warden-backup backup
+# A target that stops answering must not hang the unit for good, a failed unit
+# is what the alerts watch for. The time also counts the wait for the lock, so
+# it covers a whole weekly check (12h) and a backup after it (6h).
+TimeoutStartSec=18h
 Nice=10
 IOSchedulingClass=idle
 EOF
@@ -113,6 +121,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/warden-backup check
+TimeoutStartSec=12h
 Nice=10
 IOSchedulingClass=idle
 EOF

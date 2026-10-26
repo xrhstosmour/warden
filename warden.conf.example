@@ -1,16 +1,19 @@
 # Copy to warden.conf and fill in. Sourced by bash as root, keep it yours.
 
 # The account you log in with to administer the server. It gets sudo, which
-# asks for a password you choose during the first run.
+# asks for a password you choose during the first run. Changing the name later
+# makes a new account and leaves the old one, remove it with userdel.
 ADMIN_USER=admin
 
 # The account deployments log in with. It runs the containers with rootless
-# Docker and has no sudo.
+# Docker and has no sudo. Changing the name later leaves the old account too.
 DEPLOY_USER=deploy
 
 # Leave both empty and provision.sh makes an ed25519 key pair per account in
 # ~/.ssh on this machine, named after SERVER_HOSTNAME or the host. Or paste
-# public keys you already have, a different one per account.
+# public keys you already have, a different one per account. The comment after
+# the key may hold letters, digits, spaces and @ . _ + = : / - only, a key
+# with any other character in its comment is refused, edit the comment.
 ADMIN_PUBLIC_KEY=""
 DEPLOY_PUBLIC_KEY=""
 
@@ -128,7 +131,9 @@ BACKUP_RCLONE_CONFIG_FILE=""
 # first, a copy of their live files may not restore. Docker images are skipped.
 BACKUP_PATHS="/home"
 
-# Server time, with a few minutes of random delay.
+# Server time, with a few minutes of random delay. A backup still running
+# after 18 hours is stopped and raises the failed unit alert, the weekly check
+# gets 12 hours.
 BACKUP_TIME="03:30"
 
 # How many daily, weekly and monthly snapshots are kept.

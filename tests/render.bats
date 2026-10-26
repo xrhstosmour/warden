@@ -58,10 +58,40 @@ setup() {
     [[ "$output" == *"AuthenticationMethods publickey"* ]]
 }
 
+@test "SSH switches off every other way in" {
+    run render_sshd
+    for line in "KbdInteractiveAuthentication no" "PermitEmptyPasswords no" "PermitUserEnvironment no" \
+        "X11Forwarding no" "AllowAgentForwarding no" "MaxAuthTries 3"; do
+        [[ "$output" == *"$line"* ]]
+    done
+}
+
 @test "only the admin may forward ports" {
     run render_sshd
-    [[ "$output" == *$'AllowTcpForwarding no'* ]]
-    [[ "$output" == *$'Match User admin\n    AllowTcpForwarding local'* ]]
+    # The default is set before the admin's Match block, which ends the file.
+    before_match="${output%%Match User*}"
+    [[ "$before_match" == *$'AllowTcpForwarding no'* ]]
+    [[ "$before_match" != *"AllowTcpForwarding local"* ]]
+    [[ "$output" == *$'Match User admin\n    AllowTcpForwarding local\n    PermitOpen localhost:* 127.0.0.1:* [::1]:*'* ]]
+    [[ "$output" != *"Match User deploy"* ]]
+}
+
+@test "SSH sources keep the current port limited to them during the move" {
+    SSH_SOURCES="203.0.113.7"
+    TRANSITION_SSH_PORT=22
+    run render_nftables
+    [[ "$output" == *"ip saddr { 203.0.113.7 } tcp dport { 2222, 22 } accept"* ]]
+    [[ "$output" != *$'\n        tcp dport 22 accept'* ]]
+    [[ "$output" != *$'\n        tcp dport 2222 accept'* ]]
+}
+
+@test "tailnet only SSH keeps the old port public during the move and the new one on the tailnet" {
+    SSH_ACCESS=tailscale
+    TRANSITION_SSH_PORT=22
+    run render_nftables
+    [[ "$output" == *'iifname "tailscale0" tcp dport 2222 accept'* ]]
+    [[ "$output" == *$'\n        tcp dport 22 accept'* ]]
+    [[ "$output" != *$'\n        tcp dport 2222 accept'* ]]
 }
 
 @test "fail2ban watches the port SSH actually listens on" {

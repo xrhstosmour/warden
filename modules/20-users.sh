@@ -12,10 +12,10 @@ authorize_key() {
     local home
     home=$(getent passwd "$user" | cut -d: -f6)
 
-    install -d -m 0700 -o "$user" -g "$user" "$home/.ssh"
-    if printf '%s\n' "$key" | place_content "$home/.ssh/authorized_keys" 0600; then
-        chown "$user:$user" "$home/.ssh/authorized_keys"
-    fi
+    # Made as the user, who owns the directory and could swap it for a link
+    # while this runs, so the swap cannot reach anything the user could not.
+    runuser -u "$user" -- install -d -m 0700 "$home/.ssh"
+    printf '%s\n' "$key" | place_as_owner "$user" "$home/.ssh/authorized_keys" 0600 || true
 }
 
 if ! id "$ADMIN_USER" >/dev/null 2>&1; then

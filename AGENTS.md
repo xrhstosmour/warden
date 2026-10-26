@@ -7,6 +7,7 @@ warden hardens a fresh Debian 13 server for hosting containers. `install.sh` run
 ## Layout
 
 - `library/common.sh`: logging, `place` and `place_content` for idempotent file installs, package and service helpers.
+- `library/backups.sh`: helpers for the backups module, separate so `tests/backups.bats` can source them.
 - `library/configuration.sh`: defaults, loading and validation of `warden.conf`. Every value a module writes into a system file is validated here first.
 - `library/render.sh`: configuration files built from `warden.conf`, printing only, so `tests/render.bats` checks them without a server.
 - `modules/NN-name.sh`: one concern each. The number is the order.
