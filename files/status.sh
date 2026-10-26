@@ -5,7 +5,8 @@
 warden_status() {
     local failed listening
 
-    failed=$(systemctl --failed --no-legend 2>/dev/null | wc -l)
+    # A busy or stuck systemd must not hold the prompt back.
+    failed=$(timeout 2 systemctl --failed --no-legend 2>/dev/null | wc -l)
     listening=$(ss -tlnH 2>/dev/null | awk '{ sub(/.*:/, "", $4); print $4 }' | sort -nu | tr '\n' ' ')
 
     echo
