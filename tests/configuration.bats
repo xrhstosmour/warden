@@ -75,6 +75,15 @@ setup() {
     [[ "$output" == *"ADMIN_PUBLIC_KEY"* ]]
 }
 
+@test "a key comment the shell would expand is refused" {
+    for comment in 'x$(touch /tmp/pwned)' 'x`id`' 'x"y' 'x;y' 'x$HOME'; do
+        ADMIN_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOSWAHsCf+sZ6GEGPlRvVDuNAa/vjrxWpqgaFxT/Dsxt $comment"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"ADMIN_PUBLIC_KEY"* ]]
+    done
+}
+
 @test "SSH cannot share a public port" {
     SSH_PORT=8443
     PUBLIC_TCP_PORTS="80 443 8443"

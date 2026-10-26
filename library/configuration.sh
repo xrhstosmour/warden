@@ -75,9 +75,12 @@ uses_backups() {
     [[ -n "$BACKUP_REPOSITORY" ]]
 }
 
-# A public key line as `ssh-keygen` writes it, with an optional comment.
+# A public key line as `ssh-keygen` writes it, with an optional comment. The
+# comment is limited to characters the shell leaves alone, because the server
+# sources the line as bash before it validates anything. `provision.sh` runs
+# this check on the operator's machine first, and quotes the line with `%q`.
 is_public_key() {
-    [[ "$1" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-nistp(256|384|521)|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)\ [A-Za-z0-9+/]+={0,3}(\ [^[:cntrl:]]*)?$ ]]
+    [[ "$1" =~ ^(ssh-ed25519|sk-ssh-ed25519@openssh\.com|ecdsa-sha2-nistp(256|384|521)|sk-ecdsa-sha2-nistp256@openssh\.com|ssh-rsa)\ [A-Za-z0-9+/]+={0,3}(\ [A-Za-z0-9@._+=:/\ -]*)?$ ]]
 }
 
 is_username() {

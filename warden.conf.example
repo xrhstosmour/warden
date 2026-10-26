@@ -10,7 +10,9 @@ DEPLOY_USER=deploy
 
 # Leave both empty and provision.sh makes an ed25519 key pair per account in
 # ~/.ssh on this machine, named after SERVER_HOSTNAME or the host. Or paste
-# public keys you already have, a different one per account.
+# public keys you already have, a different one per account. The comment after
+# the key may hold letters, digits, spaces and @ . _ + = : / - only, a key
+# with any other character in its comment is refused, edit the comment.
 ADMIN_PUBLIC_KEY=""
 DEPLOY_PUBLIC_KEY=""
 

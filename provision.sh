@@ -105,7 +105,7 @@ fi
 # The keys made above follow the file's own lines, and so win over them.
 {
     cat "$configuration"
-    printf '\nADMIN_PUBLIC_KEY="%s"\nDEPLOY_PUBLIC_KEY="%s"\n' "$ADMIN_PUBLIC_KEY" "$DEPLOY_PUBLIC_KEY"
+    printf '\nADMIN_PUBLIC_KEY=%q\nDEPLOY_PUBLIC_KEY=%q\n' "$ADMIN_PUBLIC_KEY" "$DEPLOY_PUBLIC_KEY"
     printf '%s' "$backup_overrides"
 } | ssh "${ssh_options[@]}" "$target" "umask 077 && cat > $upload/warden.conf"
 
