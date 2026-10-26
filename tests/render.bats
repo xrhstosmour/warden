@@ -76,6 +76,24 @@ setup() {
     [[ "$output" != *"Match User deploy"* ]]
 }
 
+@test "SSH sources keep the current port limited to them during the move" {
+    SSH_SOURCES="203.0.113.7"
+    TRANSITION_SSH_PORT=22
+    run render_nftables
+    [[ "$output" == *"ip saddr { 203.0.113.7 } tcp dport { 2222, 22 } accept"* ]]
+    [[ "$output" != *$'\n        tcp dport 22 accept'* ]]
+    [[ "$output" != *$'\n        tcp dport 2222 accept'* ]]
+}
+
+@test "tailnet only SSH keeps the old port public during the move and the new one on the tailnet" {
+    SSH_ACCESS=tailscale
+    TRANSITION_SSH_PORT=22
+    run render_nftables
+    [[ "$output" == *'iifname "tailscale0" tcp dport 2222 accept'* ]]
+    [[ "$output" == *$'\n        tcp dport 22 accept'* ]]
+    [[ "$output" != *$'\n        tcp dport 2222 accept'* ]]
+}
+
 @test "fail2ban watches the port SSH actually listens on" {
     run render_fail2ban
     [[ "$output" == *$'[sshd]\nenabled = true\nport = 2222'* ]]
