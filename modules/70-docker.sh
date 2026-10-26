@@ -110,6 +110,14 @@ EOF
     chown "$DEPLOY_USER:$DEPLOY_USER" "$override"
 fi
 
+# Docker 29 will not create its bridge network unless this module is loaded,
+# the daemon stops with "bridge-nf-call-iptables: no such file". It is the
+# host's module, rootless Docker cannot load it, so it is loaded now and at
+# every boot.
+if printf 'br_netfilter\n' | place_content /etc/modules-load.d/warden-docker.conf 0644; then
+    modprobe br_netfilter || log_warning "br_netfilter did not load, rootless Docker may not start."
+fi
+
 if [[ ! -f "$deploy_home/.config/systemd/user/docker.service" ]]; then
     # The setup tool refuses to run until the netfilter module is loaded,
     # and skipping that check would switch container networking off.
