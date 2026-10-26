@@ -276,6 +276,11 @@ setup() {
     [[ "$output" == *"etckeeper"*"on"* ]]
     [[ "$output" == *"alerts"*"off"*"ALERTS=ntfy"* ]]
     [[ "$output" == *"backups"*"off"*"BACKUP_REPOSITORY"* ]]
+    [[ "$output" == *"Tailscale"*"off"*"SSH_ACCESS"* ]]
+    TAILSCALE_AUTH_KEY="tskey-auth-k1a2b3-c4d5e6"
+    run describe_features
+    [[ "$output" == *"Tailscale"*"on"* ]]
+    TAILSCALE_AUTH_KEY=""
     ALERTS=ntfy
     BACKUP_REPOSITORY=sftp:backup@laptop:/srv/warden
     CLOUDFLARE_ONLY=yes
