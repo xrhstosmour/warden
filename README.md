@@ -28,6 +28,8 @@ cp warden.conf.example warden.conf
 
 It makes an SSH key pair per account, asks for the admin's `sudo` password, checks both accounts log in on the new port, and writes an SSH config next to the keys, so `ssh app-admin` and `ssh app-deploy` work. Later runs go through the admin, `./provision.sh <server-administrator-username>@<server-address> -p <server-ssh-port>`.
 
+Run it from the same machine each time, or keep the keys it made in `~/.ssh` with you. With the public keys left empty in `warden.conf`, warden names the keys after `SERVER_HOSTNAME` or the address, and the server accepts only the keys from the latest run. A later run through the admin on another machine, or under another name, stops with a message instead of replacing the working key. Set `SERVER_HOSTNAME` or paste both public keys into `warden.conf` then.
+
 For SSH over Tailscale only, set `SSH_ACCESS=tailscale` in `warden.conf`. With no `TAILSCALE_AUTH_KEY`, the first run prints a login URL to approve in your browser. Turn off key expiry for the server in the Tailscale admin console afterwards. If the tailnet login fails, public SSH reopens by itself after 15 minutes.
 
 ## Alerts

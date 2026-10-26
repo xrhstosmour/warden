@@ -54,6 +54,11 @@ admin_identity="$key_directory/${name}_admin"
 deploy_identity="$key_directory/${name}_deploy"
 
 if [[ -z "$ADMIN_PUBLIC_KEY" || -z "$DEPLOY_PUBLIC_KEY" ]]; then
+    # Logging in as the admin means the server already has keys. New ones
+    # under another name would replace the ones in use, locking out the old.
+    if [[ -z "$ADMIN_PUBLIC_KEY" && "$user" == "$ADMIN_USER" && ! -f "$admin_identity" ]]; then
+        fail "No key named ${name}_admin in $key_directory, and the server already has the admin's key. Set SERVER_HOSTNAME to the name the keys were made under, or paste both public keys into warden.conf."
+    fi
     log_info "Making the key pairs in $key_directory."
     "$WARDEN_DIRECTORY/keys.sh" "$name" "$key_directory" >/dev/null
     [[ -n "$ADMIN_PUBLIC_KEY" ]] || ADMIN_PUBLIC_KEY=$(cat "$admin_identity.pub")
