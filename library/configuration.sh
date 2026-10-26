@@ -154,6 +154,10 @@ validate_configuration() {
     if uses_tailscale && [[ ! "$TAILSCALE_TAG" =~ ^tag:(server|web|shared|internal)$ ]]; then
         problems+=("TAILSCALE_TAG must be tag:server, tag:web, tag:shared or tag:internal, a server without a tag gets the access of a personal device.")
     fi
+    # The policy grants the tailnet port 22 only, plain sshd listens elsewhere.
+    if [[ "$SSH_ACCESS" == "tailscale" && "$TAILSCALE_SSH" != "yes" ]]; then
+        problems+=("SSH_ACCESS=tailscale needs TAILSCALE_SSH=yes, the tailnet policy only grants port 22, which Tailscale SSH serves.")
+    fi
     if [[ "$SSH_ACCESS" == "tailscale" && -n "$SSH_SOURCES" ]]; then
         problems+=("SSH_SOURCES and SSH_ACCESS=tailscale exclude each other, the tailnet decides who reaches SSH.")
     fi

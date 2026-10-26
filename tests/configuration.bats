@@ -148,8 +148,28 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
+@test "tailnet only SSH needs Tailscale SSH, the policy grants port 22 only" {
+    SSH_ACCESS=tailscale
+    TAILSCALE_TAG=tag:server
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"needs TAILSCALE_SSH=yes"* ]]
+    TAILSCALE_SSH=yes
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "public SSH may join the tailnet without Tailscale SSH" {
+    TAILSCALE_AUTH_KEY="tskey-auth-k1a2b3-c4d5e6"
+    TAILSCALE_TAG=tag:web
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
 @test "SSH sources and tailnet only SSH exclude each other" {
     SSH_ACCESS=tailscale
+    TAILSCALE_SSH=yes
+    TAILSCALE_TAG=tag:server
     SSH_SOURCES="203.0.113.0/24"
     run validate_configuration
     [ "$status" -eq 1 ]
