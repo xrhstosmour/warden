@@ -244,6 +244,24 @@ setup() {
     done
 }
 
+@test "values written into system files refuse anything the shell or a file format would read" {
+    # Each case is the assignment, then the text its problem line must carry
+    # when that is not the variable name.
+    for case in 'SWAP_SIZE=2G;reboot' 'SWAP_SIZE=two' 'SERVER_HOSTNAME=a.b' 'SERVER_HOSTNAME=a b' \
+        'PUBLIC_UDP_PORTS=443;x|Public port' 'PUBLIC_TCP_PORTS=80 x|Public port' 'REBOOT_TIME=4am' 'TIMEZONE=UTC;x' \
+        $'BACKUP_REPOSITORY=sftp:backup@laptop:/srv\nX=1' \
+        'NTFY_SERVER=https://ntfy.sh/x;y' 'DOCKER_ADDRESS_POOL=10.0.0.0/16;x'; do
+        assignment="${case%%|*}"
+        expected="${assignment%%=*}"
+        [[ "$case" == *"|"* ]] && expected="${case#*|}"
+        setup
+        printf -v "${assignment%%=*}" '%s' "${assignment#*=}"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"$expected"* ]]
+    done
+}
+
 @test "Tailscale is used only when asked for" {
     run uses_tailscale
     [ "$status" -eq 1 ]
