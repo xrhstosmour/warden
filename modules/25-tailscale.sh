@@ -23,12 +23,14 @@ install_packages tailscale
 ensure_service tailscaled
 
 ssh_over_tailnet=false
-[[ "$TAILSCALE_SSH" == "yes" ]] && ssh_over_tailnet=true
+uses_tailscale_ssh && ssh_over_tailnet=true
 
 if ! tailscale status >/dev/null 2>&1; then
     # The server keeps its own resolver, MagicDNS is for people, and the
     # containers resolve through the host.
-    up_options=(--hostname="$(hostname)" --accept-dns=false --ssh="$ssh_over_tailnet")
+    # The tag is applied at enrollment, the tailnet policy gives an untagged
+    # machine the access of a personal device.
+    up_options=(--hostname="$(hostname)" --accept-dns=false --ssh="$ssh_over_tailnet" --advertise-tags="$TAILSCALE_TAG")
     if [[ -n "$TAILSCALE_AUTH_KEY" ]]; then
         # Read from a file rather than the command line, where every
         # process on the machine can see it.
@@ -49,6 +51,11 @@ if ! tailscale status >/dev/null 2>&1; then
     fi
     log_info "Joined the tailnet."
 fi
+
+# A server that joined earlier without the tag stays untagged, so it is
+# refused rather than retagged behind the owner's back.
+tailscale status --json | has_tailscale_tag "$TAILSCALE_TAG" ||
+    fail "This server is on the tailnet without $TAILSCALE_TAG. Tag it in the Tailscale admin console and run again."
 
 tailscale set --ssh="$ssh_over_tailnet" --accept-dns=false
 

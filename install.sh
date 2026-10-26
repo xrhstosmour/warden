@@ -45,7 +45,11 @@ for module in "$WARDEN_DIRECTORY"/modules/*.sh; do
 done
 
 describe_features >&2
-log_success "Done. Log in as $ADMIN_USER on port $SSH_PORT from a new terminal before closing this one."
+if uses_tailscale_ssh_login; then
+    log_success "Done. Log in as $ADMIN_USER over Tailscale SSH, port 22 of the tailnet address, from a new terminal before closing this one."
+else
+    log_success "Done. Log in as $ADMIN_USER on port $SSH_PORT from a new terminal before closing this one."
+fi
 if [[ -f /var/run/reboot-required ]]; then
     log_warning "A reboot is needed to finish, run sudo reboot once the new login works."
 fi

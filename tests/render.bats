@@ -114,6 +114,20 @@ setup() {
     [[ "$output" == *$'\n        tcp dport 2222 accept'* ]]
 }
 
+@test "Tailscale SSH opens port 22 on the tailnet interface alone" {
+    TAILSCALE_SSH=yes
+    run render_nftables
+    [[ "$output" == *$'\n        iifname "tailscale0" tcp dport 22 accept'* ]]
+    [[ "$output" != *$'\n        tcp dport 22 accept'* ]]
+    [[ "$output" != *", 22 }"* ]]
+}
+
+@test "port 22 stays closed on the tailnet without Tailscale SSH" {
+    TAILSCALE_AUTH_KEY="tskey-auth-k1a2b3-c4d5e6"
+    run render_nftables
+    [[ "$output" != *"dport 22 "* ]]
+}
+
 @test "the Tailscale port stays closed without Tailscale" {
     run render_nftables
     [[ "$output" != *"41641"* ]]

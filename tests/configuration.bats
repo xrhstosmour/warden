@@ -12,6 +12,7 @@ setup() {
     SSH_ACCESS=public
     TAILSCALE_AUTH_KEY=""
     TAILSCALE_SSH=no
+    TAILSCALE_TAG=""
     ETCKEEPER=yes
     LOGIN_STATUS=yes
     AUDIT_TOOL=yes
@@ -121,12 +122,59 @@ setup() {
     [ "$status" -eq 1 ]
     [[ "$output" == *"TAILSCALE_AUTH_KEY"* ]]
     TAILSCALE_AUTH_KEY="tskey-auth-k1a2b3-c4d5e6"
+    TAILSCALE_TAG=tag:server
     run validate_configuration
     [ "$status" -eq 0 ]
 }
 
+@test "a server on the tailnet needs one of the four role tags" {
+    TAILSCALE_AUTH_KEY="tskey-auth-k1a2b3-c4d5e6"
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"TAILSCALE_TAG"* ]]
+    TAILSCALE_TAG="tag:admin"
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"TAILSCALE_TAG"* ]]
+    for TAILSCALE_TAG in tag:server tag:web tag:shared tag:internal; do
+        run validate_configuration
+        [ "$status" -eq 0 ]
+    done
+}
+
+@test "the tag is ignored without Tailscale" {
+    TAILSCALE_TAG="tag:bogus"
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "tailnet only SSH needs Tailscale SSH, the policy grants port 22 only" {
+    SSH_ACCESS=tailscale
+    TAILSCALE_TAG=tag:server
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"needs TAILSCALE_SSH=yes"* ]]
+    TAILSCALE_SSH=yes
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "public SSH may join the tailnet without Tailscale SSH" {
+    TAILSCALE_AUTH_KEY="tskey-auth-k1a2b3-c4d5e6"
+    TAILSCALE_TAG=tag:web
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "the SSH rollback outlasts the backup, both approvals and the final login" {
+    run rollback_minutes
+    [ "$output" -gt $((9 + 15 + 10)) ]
+}
+
 @test "SSH sources and tailnet only SSH exclude each other" {
     SSH_ACCESS=tailscale
+    TAILSCALE_SSH=yes
+    TAILSCALE_TAG=tag:server
     SSH_SOURCES="203.0.113.0/24"
     run validate_configuration
     [ "$status" -eq 1 ]
@@ -270,6 +318,18 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
+@test "the tag of a running tailnet node is read from its status" {
+    run has_tailscale_tag tag:server <<<'{"Self":{"Tags":["tag:server"]}}'
+    [ "$status" -eq 0 ]
+    run has_tailscale_tag tag:server <<<'{"Self":{"Tags":["tag:web","tag:server"]}}'
+    [ "$status" -eq 0 ]
+    run has_tailscale_tag tag:server <<<'{"Self":{"Tags":["tag:web"]}}'
+    [ "$status" -eq 1 ]
+    run has_tailscale_tag tag:server <<<'{"Self":{"Tags":null}}'
+    [ "$status" -eq 1 ]
+    run has_tailscale_tag tag:server <<<'{"Self":{}}'
+    [ "$status" -eq 1 ]
+}
 
 @test "the feature list says what is on and what is off" {
     run describe_features

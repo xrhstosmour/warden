@@ -107,6 +107,13 @@ EOF
         echo "        # Tailscale's own port, for direct connections rather than relays."
         echo "        udp dport 41641 accept"
     fi
+    if uses_tailscale_ssh; then
+        echo ""
+        echo "        # Tailscale SSH answers on port 22 of the tailnet address, the one"
+        echo "        # port the tailnet policy grants. Tailscale may take it before this"
+        echo "        # chain, the rule keeps it working either way. Never public."
+        echo "        iifname \"tailscale0\" tcp dport 22 accept"
+    fi
     cat <<'EOF'
     }
 

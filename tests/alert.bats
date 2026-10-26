@@ -124,6 +124,9 @@ wait_for_alerts() {
     PAM_TYPE=open_session PAM_USER=admin PAM_RHOST=198.51.100.7 run "$work/login"
     [ ! -e "$work/stamp/login-old-0000" ]
     [ -e "$work/stamp/login-recent-0000" ]
+    # The hook sends its alert in the background, teardown must not remove
+    # the directory while it writes.
+    wait_for_alerts 1
 }
 
 @test "variables set by the logging in user cannot redirect the hook" {

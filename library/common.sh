@@ -156,3 +156,27 @@ ensure_service() {
         systemctl start "$unit"
     fi
 }
+
+# within "seconds" command [argument...]
+# Stops the command after that long, macOS ships no `timeout`. Returns 124
+# when it had to, the command's own status otherwise. An interrupt stops it
+# too, a background job would otherwise outlive the script.
+within() {
+    local seconds="$1" waited=0 pid
+    shift
+    "$@" &
+    pid=$!
+    trap 'kill "$pid" 2>/dev/null; exit 130' INT TERM
+    while kill -0 "$pid" 2>/dev/null; do
+        if ((waited >= seconds)); then
+            kill "$pid" 2>/dev/null || true
+            wait "$pid" 2>/dev/null || true
+            trap - INT TERM
+            return 124
+        fi
+        sleep 1
+        waited=$((waited + 1))
+    done
+    trap - INT TERM
+    wait "$pid"
+}
