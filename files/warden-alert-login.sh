@@ -14,6 +14,8 @@ stamp_directory=/run/warden-alert
 # One push per user and address per minute, a burst of connections from the
 # same place is one event. The address only names the stamp file.
 install -d -m 0700 "$stamp_directory" 2>/dev/null
+# Stamps older than the minute that matters would only pile up until reboot.
+find "$stamp_directory" -type f -mmin +60 -delete 2>/dev/null
 origin=$(printf '%s' "${PAM_RHOST:-}" | sha256sum | cut -c1-16)
 stamp="$stamp_directory/login-${user//[^A-Za-z0-9_-]/_}-$origin"
 if [[ -f "$stamp" && -n "$(find "$stamp" -mmin -1 2>/dev/null)" ]]; then
