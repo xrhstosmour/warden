@@ -38,6 +38,16 @@ rclone:*)
     ;;
 esac
 
+# The daily backup, the weekly check and the restore test lock the repository
+# against each other, so the later one waits instead of failing with a false
+# alert on restic's own lock.
+case "${1:-backup}" in
+backup | check | verify | has-snapshots)
+    exec 9>"$state_directory/backup.lock"
+    flock 9
+    ;;
+esac
+
 case "${1:-backup}" in
 init)
     restic "${options[@]}" cat config >/dev/null 2>&1 || restic "${options[@]}" init >/dev/null ||

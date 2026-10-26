@@ -36,7 +36,12 @@ EOF
 #!/bin/bash
 echo "$@" >>"$WORK/alert-calls"
 EOF
-    chmod +x "$work/bin/restic" "$work/alert"
+    # A flock that records its call, the real one is not on every machine.
+    cat >"$work/bin/flock" <<'EOF'
+#!/bin/bash
+echo "$@" >>"$WORK/flock-calls"
+EOF
+    chmod +x "$work/bin/restic" "$work/alert" "$work/bin/flock"
     export PATH="$work/bin:$PATH"
     echo "app-1" >"$work/hostname"
     export WARDEN_VERIFY_FILE="$work/hostname"
@@ -58,6 +63,19 @@ teardown() {
     run "$script" backup
     grep -q 'ServerAliveInterval=30' "$work/restic-arguments"
     grep -q 'ServerAliveCountMax=4' "$work/restic-arguments"
+}
+
+@test "every command that reads or changes snapshots takes the same lock" {
+    for command in backup check verify has-snapshots; do
+        run "$script" "$command"
+    done
+    [ "$(wc -l <"$work/flock-calls")" -eq 4 ]
+    [ -f "$work/state/backup.lock" ]
+}
+
+@test "starting the repository takes no lock" {
+    run "$script" init
+    [ ! -e "$work/flock-calls" ]
 }
 
 @test "the password travels as a file path, never in the arguments" {
