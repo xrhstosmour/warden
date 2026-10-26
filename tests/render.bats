@@ -60,8 +60,12 @@ setup() {
 
 @test "only the admin may forward ports" {
     run render_sshd
-    [[ "$output" == *$'AllowTcpForwarding no'* ]]
-    [[ "$output" == *$'Match User admin\n    AllowTcpForwarding local'* ]]
+    # The default is set before the admin's Match block, which ends the file.
+    before_match="${output%%Match User*}"
+    [[ "$before_match" == *$'AllowTcpForwarding no'* ]]
+    [[ "$before_match" != *"AllowTcpForwarding local"* ]]
+    [[ "$output" == *$'Match User admin\n    AllowTcpForwarding local\n    PermitOpen localhost:* 127.0.0.1:* [::1]:*'* ]]
+    [[ "$output" != *"Match User deploy"* ]]
 }
 
 @test "fail2ban watches the port SSH actually listens on" {
