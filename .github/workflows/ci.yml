@@ -33,5 +33,9 @@ jobs:
     needs: [lint, unit]
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      # The runner's kernel does not load it, and rootless Docker refuses to
+      # start its bridge network without it. The container shares this kernel.
+      - name: Load the bridge netfilter module
+        run: sudo modprobe br_netfilter
       - name: Run warden twice in Debian 13
         run: tests/integration/run.sh
