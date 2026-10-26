@@ -107,7 +107,7 @@ EOF
         echo "        # Tailscale's own port, for direct connections rather than relays."
         echo "        udp dport 41641 accept"
     fi
-    if [[ "$TAILSCALE_SSH" == "yes" ]]; then
+    if uses_tailscale_ssh; then
         echo ""
         echo "        # Tailscale SSH answers on port 22 of the tailnet address, the one"
         echo "        # port the tailnet policy grants. Tailscale may take it before this"

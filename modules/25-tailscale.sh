@@ -23,7 +23,7 @@ install_packages tailscale
 ensure_service tailscaled
 
 ssh_over_tailnet=false
-[[ "$TAILSCALE_SSH" == "yes" ]] && ssh_over_tailnet=true
+uses_tailscale_ssh && ssh_over_tailnet=true
 
 if ! tailscale status >/dev/null 2>&1; then
     # The server keeps its own resolver, MagicDNS is for people, and the

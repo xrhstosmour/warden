@@ -56,10 +56,15 @@ uses_tailscale() {
     [[ "$SSH_ACCESS" == "tailscale" || "$TAILSCALE_SSH" == "yes" || -n "$TAILSCALE_AUTH_KEY" ]]
 }
 
+# Whether Tailscale SSH is on, served on port 22 of the tailnet address.
+uses_tailscale_ssh() {
+    [[ "$TAILSCALE_SSH" == "yes" ]]
+}
+
 # Whether the only way to log in is Tailscale SSH on port 22, the one SSH
 # port the tailnet policy grants.
 uses_tailscale_ssh_login() {
-    [[ "$SSH_ACCESS" == "tailscale" && "$TAILSCALE_SSH" == "yes" ]]
+    [[ "$SSH_ACCESS" == "tailscale" ]] && uses_tailscale_ssh
 }
 
 # Minutes after SSH moved until public SSH comes back when nobody proves a
