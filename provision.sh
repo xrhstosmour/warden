@@ -191,9 +191,8 @@ if [[ "$SSH_ACCESS" == "tailscale" ]]; then
     identity_options "$admin_identity"
     # A timer that already fired left a public rule for SSH_PORT behind, then
     # stopping it would claim a tailnet only server that is not one.
-    ssh -t "${options[@]}" "$ADMIN_USER@$login_host" \
-        "sudo sh -c 'if systemctl is-active -q warden-ssh-rollback.timer; then systemctl stop warden-ssh-rollback.timer; elif nft list chain inet warden input | grep -q \"^[[:space:]]*tcp dport $SSH_PORT accept\"; then exit 3; fi'" ||
-        fail "The rollback timer fired before the login was proved, so public SSH on port $SSH_PORT is open again. Run provision.sh again."
+    ssh -t "${options[@]}" "$ADMIN_USER@$login_host" "sudo /usr/local/sbin/warden-ssh-rollback-stop $SSH_PORT" ||
+        fail "Could not stop the rollback timer. If it already fired, public SSH on port $SSH_PORT is open again. Run provision.sh again."
 fi
 
 # A Host entry per account, in a file of its own next to the keys.

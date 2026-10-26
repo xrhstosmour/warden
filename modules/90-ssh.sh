@@ -40,6 +40,11 @@ if [[ "$changed" == true ]]; then
 fi
 ensure_service ssh
 
+# What `provision.sh` runs once a tailnet login works, to stop the rollback.
+if [[ "$SSH_ACCESS" == "tailscale" ]]; then
+    place "$WARDEN_DIRECTORY/files/warden-ssh-rollback-stop.sh" /usr/local/sbin/warden-ssh-rollback-stop 0755 || true
+fi
+
 # SSH listens on its own port now, close any other one the firewall step
 # kept open for the move. A no-op when there was none.
 candidate=$(mktemp)
