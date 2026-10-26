@@ -30,6 +30,29 @@ It makes an SSH key pair per account, asks for the admin's `sudo` password, chec
 
 Run it from the same machine each time, or keep the keys it made in `~/.ssh` with you. With the public keys left empty in `warden.conf`, warden names the keys after `SERVER_HOSTNAME` or the address, and the server accepts only the keys from the latest run. A later run through the admin on another machine, or under another name, stops with a message instead of replacing the working key. Set `SERVER_HOSTNAME` or paste both public keys into `warden.conf` then.
 
+## Supported systems
+
+Debian 13 (trixie) only. On another Debian release warden warns and carries on, so expect surprises. Other distributions stop at the start. The first login needs root, or a user with `sudo`, because `provision.sh` runs `sudo` over SSH. A provider that only offers a password login asks for it on every connection warden makes, copy your key to that user first with `ssh-copy-id` to avoid the repeats.
+
+## What leaves the server
+
+- Debian mirrors, for `apt` and the daily security updates.
+- `download.docker.com`, Docker's `apt` repository, its signing key is pinned to the fingerprint Docker publishes. Unattended upgrades take Docker packages from it too, and reboot the server when a kernel needs it. A bad Docker release would reach every server within a day, hold the packages with `apt-mark hold` if you want to update them by hand.
+- `pkgs.tailscale.com`, only with Tailscale, pinned and updated the same way.
+- `www.cloudflare.com`, only with `CLOUDFLARE_ONLY=yes`, for the address ranges.
+- `NTFY_SERVER`, only with `ALERTS=ntfy`, and the backup target, only with `BACKUP_REPOSITORY`.
+
+Nothing else is contacted, and nothing is sent to the author of warden.
+
+## When something goes wrong
+
+- Locked out by a wrong `SSH_SOURCES` or firewall change: open the provider's web console, log in as the admin with its password, then `sudo nft insert rule inet warden input tcp dport <ssh-port> accept` and fix `warden.conf`. The next run rewrites the firewall.
+- Locked out with `SSH_ACCESS=tailscale`: public SSH reopens by itself after 15 minutes.
+- A rebuilt server with the same address has a new host key, so `ssh` stops with `REMOTE HOST IDENTIFICATION HAS CHANGED`. Clear the old one with `ssh-keygen -R <address>` and `ssh-keygen -R "[<address>]:<ssh-port>"`.
+- Changing `ADMIN_USER` or `DEPLOY_USER` later makes a new account and leaves the old one, with its home and, for an admin, `sudo`. SSH refuses it from then on, remove it with `sudo userdel -r <old-user>`.
+- To rotate keys, make a new pair with `./keys.sh <name>`, put the public keys in `warden.conf` and run again, `authorized_keys` is rewritten, so the old keys stop working.
+- There is no uninstall. `/etc` is in git with `etckeeper`, `sudo etckeeper vcs log` shows each change warden made and you can revert them. For a clean slate, reinstall the image.
+
 For SSH over Tailscale only, set `SSH_ACCESS=tailscale` in `warden.conf`. With no `TAILSCALE_AUTH_KEY`, the first run prints a login URL to approve in your browser. Turn off key expiry for the server in the Tailscale admin console afterwards. If the tailnet login fails, public SSH reopens by itself after 15 minutes.
 
 ## Alerts

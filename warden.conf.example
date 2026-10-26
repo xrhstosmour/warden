@@ -1,11 +1,12 @@
 # Copy to warden.conf and fill in. Sourced by bash as root, keep it yours.
 
 # The account you log in with to administer the server. It gets sudo, which
-# asks for a password you choose during the first run.
+# asks for a password you choose during the first run. Changing the name later
+# makes a new account and leaves the old one, remove it with userdel.
 ADMIN_USER=admin
 
 # The account deployments log in with. It runs the containers with rootless
-# Docker and has no sudo.
+# Docker and has no sudo. Changing the name later leaves the old account too.
 DEPLOY_USER=deploy
 
 # Leave both empty and provision.sh makes an ed25519 key pair per account in
