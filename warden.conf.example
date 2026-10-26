@@ -22,8 +22,9 @@ DEPLOY_PUBLIC_KEY=""
 SSH_PORT=2222
 
 # public: SSH_PORT is open to everyone, or to SSH_SOURCES when set.
-# tailscale: SSH_PORT answers on the tailnet only, nothing on the public
-# address. Needs this machine on the same tailnet.
+# tailscale: SSH answers on the tailnet only, nothing on the public address,
+# through Tailscale SSH on port 22 (needs TAILSCALE_SSH=yes). Needs this
+# machine on the same tailnet, as a personal device.
 SSH_ACCESS=public
 
 # Optional with SSH_ACCESS=public, only these addresses or ranges may reach
@@ -32,19 +33,39 @@ SSH_SOURCES=""
 
 # Joins the server to your tailnet. A one-off key from
 # https://login.tailscale.com/admin/settings/keys, only needed on the first
-# run. Empty, the first run prints a login URL to approve in your browser
-# instead. Empty and SSH_ACCESS=public leaves Tailscale out.
+# run: not reusable, tagged with TAILSCALE_TAG. Empty, the first run prints a
+# login URL to approve in your browser instead, which only works when you are
+# an admin allowed to own the tag. Empty and SSH_ACCESS=public leaves
+# Tailscale out.
 TAILSCALE_AUTH_KEY=""
 
-# yes: Tailscale SSH on port 22 of the tailnet address too, signed in by the
-# tailnet's access rules rather than keys. The SSH_PORT login stays as well.
+# The role the server joins the tailnet with, required with Tailscale and with
+# no default. An untagged machine counts as your personal device and reaches
+# everything. What each tag may do is set by the tailnet policy, which wins
+# over this list, see the policy file you keep for your tailnet.
+#   tag:server    SSH on 22 from your devices, reaches the internet only.
+#   tag:web       SSH on 22, HTTP and HTTPS from your devices, internet only.
+#   tag:shared    SSH on 22, reaches other tag:shared machines and the internet.
+#   tag:internal  SSH on 22, reaches nothing.
+# No tag reaches your own devices. Only admins can apply a tag.
+TAILSCALE_TAG=""
+
+# yes: Tailscale SSH on port 22 of the tailnet address, signed in by the
+# tailnet's access rules rather than keys, as ADMIN_USER or DEPLOY_USER, never
+# root. The policy asks for a browser approval on login. Required with
+# SSH_ACCESS=tailscale, because the policy grants the tailnet port 22 only.
+# Tailscale SSH does not use the sshd settings or fail2ban.
 TAILSCALE_SSH=no
 
 # Ports open to everyone. UDP 443 is HTTP/3.
 PUBLIC_TCP_PORTS="80 443"
 PUBLIC_UDP_PORTS="443"
 
-# Optional, a single label such as app-1. Empty keeps the provider's.
+# Optional, a single label such as app-1. Empty keeps the provider's. It is
+# also the machine name on the tailnet, and machine names appear in public
+# Certificate Transparency logs when HTTPS is enabled on the Tailscale DNS
+# page, so put nothing private in it. The server keeps its own resolver,
+# warden joins with --accept-dns=false.
 SERVER_HOSTNAME=""
 TIMEZONE=UTC
 
@@ -105,8 +126,12 @@ ALERT_SSH_LOGIN=yes
 # Encrypted backups with restic. Off while BACKUP_REPOSITORY is empty. The
 # data is encrypted here before it leaves, the target only ever holds
 # ciphertext, though it sees that you back up, when, and how much.
-#   sftp:user@host:/path   any SFTP host, a laptop over Tailscale works while
-#                          it is awake and on
+#   sftp:user@host:/path   any SFTP host. Not your own device over Tailscale:
+#                          the tailnet policy lets no tag reach a personal
+#                          device. A narrow grant from the server tag to the
+#                          laptop on port 22 would allow it, and would also let
+#                          a taken-over server reach that laptop's SSH, so it
+#                          is your decision, warden does not assume it.
 #   rclone:remote:path     anything rclone reaches, such as Filen or Google
 #                          Drive. Filen needs rclone 1.73 or newer, the Debian
 #                          package may be older, warden warns when it is.
