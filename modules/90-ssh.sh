@@ -53,9 +53,9 @@ if place "$candidate" /etc/nftables.conf 0755; then
         # able to log in over it, public SSH on the new port comes back by
         # itself until the next run, rather than the server being lost.
         systemctl stop warden-ssh-rollback.timer 2>/dev/null || true
-        systemd-run --quiet --unit=warden-ssh-rollback --on-active=15min \
+        systemd-run --quiet --unit=warden-ssh-rollback --on-active="$(rollback_minutes)min" \
             /usr/sbin/nft insert rule inet warden input tcp dport "$SSH_PORT" accept
-        log_warning "SSH answers on the tailnet only. Public SSH reopens in 15 minutes unless a tailnet login runs: sudo systemctl stop warden-ssh-rollback.timer"
+        log_warning "SSH answers on the tailnet only. Public SSH reopens $(rollback_minutes) minutes after this unless a tailnet login runs: sudo systemctl stop warden-ssh-rollback.timer"
     fi
 fi
 rm -f "$candidate"

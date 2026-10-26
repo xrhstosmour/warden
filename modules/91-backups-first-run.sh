@@ -2,9 +2,10 @@
 # The first backup and a restore test, which prove the target, the host key
 # and the password work before anyone depends on the backups. Runs after SSH
 # has moved, so an unreachable target never blocks the hardening. A failure is
-# reported loudly and does not stop the run. Every step is bounded, 8 minutes
+# reported loudly and does not stop the run. Every step is bounded, 9 minutes
 # in all, because with `SSH_ACCESS=tailscale` the rollback that reopens public
-# SSH fires 15 minutes after SSH moved, and a slow upload must not outlast it.
+# SSH fires `rollback_minutes` after SSH moved, and a slow upload must not
+# outlast it.
 # A backup cut short carries on in the daily timer.
 
 uses_backups || return 0

@@ -56,6 +56,21 @@ uses_tailscale() {
     [[ "$SSH_ACCESS" == "tailscale" || "$TAILSCALE_SSH" == "yes" || -n "$TAILSCALE_AUTH_KEY" ]]
 }
 
+# Whether the only way to log in is Tailscale SSH on port 22, the one SSH
+# port the tailnet policy grants.
+uses_tailscale_ssh_login() {
+    [[ "$SSH_ACCESS" == "tailscale" && "$TAILSCALE_SSH" == "yes" ]]
+}
+
+# Minutes after SSH moved until public SSH comes back when nobody proves a
+# tailnet login. Tailscale SSH asks for a browser approval first, which takes
+# long. The 40 counts up to 9 for the first backup, 15 for the approvals of
+# both accounts (`login_approval_seconds` in `provision.sh`), 10 for the final
+# login with its `sudo` password, and the rest for the upload and `etckeeper`.
+rollback_minutes() {
+    echo 40
+}
+
 # Whether new Docker networks take their ranges from a warden pool.
 uses_docker_pool() {
     [[ -n "$DOCKER_ADDRESS_POOL" ]]

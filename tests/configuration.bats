@@ -166,6 +166,11 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
+@test "the SSH rollback outlasts the backup, both approvals and the final login" {
+    run rollback_minutes
+    [ "$output" -gt $((9 + 15 + 10)) ]
+}
+
 @test "SSH sources and tailnet only SSH exclude each other" {
     SSH_ACCESS=tailscale
     TAILSCALE_SSH=yes
