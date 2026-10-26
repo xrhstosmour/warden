@@ -58,6 +58,14 @@ setup() {
     [[ "$output" == *"AuthenticationMethods publickey"* ]]
 }
 
+@test "SSH switches off every other way in" {
+    run render_sshd
+    for line in "KbdInteractiveAuthentication no" "PermitEmptyPasswords no" "PermitUserEnvironment no" \
+        "X11Forwarding no" "AllowAgentForwarding no" "MaxAuthTries 3"; do
+        [[ "$output" == *"$line"* ]]
+    done
+}
+
 @test "only the admin may forward ports" {
     run render_sshd
     # The default is set before the admin's Match block, which ends the file.
