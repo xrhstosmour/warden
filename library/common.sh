@@ -77,9 +77,11 @@ place_as_owner() {
     return "$status"
 }
 
-# The primary key fingerprint of an OpenPGP key file.
+# The primary key fingerprint of an OpenPGP key file, nothing when the file
+# holds more than one key, apt trusts every key in a file it is pointed at.
 key_fingerprint() {
-    gpg --show-keys --with-colons "$1" 2>/dev/null | awk -F: '$1 == "fpr" { print $10; exit }'
+    gpg --show-keys --with-colons "$1" 2>/dev/null |
+        awk -F: '$1 == "pub" { keys++ } $1 == "fpr" && !fingerprint { fingerprint = $10 } END { if (keys == 1) print fingerprint }'
 }
 
 # Place a repository's signing key, refusing one whose fingerprint is not
