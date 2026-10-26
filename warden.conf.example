@@ -130,7 +130,9 @@ BACKUP_RCLONE_CONFIG_FILE=""
 # first, a copy of their live files may not restore. Docker images are skipped.
 BACKUP_PATHS="/home"
 
-# Server time, with a few minutes of random delay.
+# Server time, with a few minutes of random delay. A backup still running
+# after 18 hours is stopped and raises the failed unit alert, the weekly check
+# gets 12 hours.
 BACKUP_TIME="03:30"
 
 # How many daily, weekly and monthly snapshots are kept.

@@ -87,6 +87,10 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/warden-backup backup
+# A target that stops answering must not hang the unit for good, a failed unit
+# is what the alerts watch for. The time also counts the wait for the lock, so
+# it covers a whole weekly check (12h) and a backup after it (6h).
+TimeoutStartSec=18h
 Nice=10
 IOSchedulingClass=idle
 EOF
@@ -113,6 +117,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/warden-backup check
+TimeoutStartSec=12h
 Nice=10
 IOSchedulingClass=idle
 EOF

@@ -54,6 +54,12 @@ teardown() {
     grep -q 'backup@laptop' "$work/restic-arguments"
 }
 
+@test "a backup never waits forever on a dead connection" {
+    run "$script" backup
+    grep -q 'ServerAliveInterval=30' "$work/restic-arguments"
+    grep -q 'ServerAliveCountMax=4' "$work/restic-arguments"
+}
+
 @test "the password travels as a file path, never in the arguments" {
     echo "correct-horse-battery-staple" >"$work/state/backup/password"
     run "$script" backup

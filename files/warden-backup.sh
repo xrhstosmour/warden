@@ -31,7 +31,7 @@ case "$BACKUP_REPOSITORY" in
 sftp:*)
     target="${BACKUP_REPOSITORY#sftp:}"
     # The host key is pinned, an unknown or changed host is refused.
-    options=(-o "sftp.command=ssh ${target%%:*} -p $BACKUP_SSH_PORT -i $secrets/key -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=$secrets/known_hosts -o StrictHostKeyChecking=yes -s sftp")
+    options=(-o "sftp.command=ssh ${target%%:*} -p $BACKUP_SSH_PORT -i $secrets/key -o IdentitiesOnly=yes -o BatchMode=yes -o UserKnownHostsFile=$secrets/known_hosts -o StrictHostKeyChecking=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=4 -s sftp")
     ;;
 rclone:*)
     export RCLONE_CONFIG="$secrets/rclone.conf"
