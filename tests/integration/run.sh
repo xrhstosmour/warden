@@ -76,7 +76,12 @@ docker exec "$container" sh -c 'mkdir -p "/lib/modules/$(uname -r)" && echo kern
 docker exec "$container" sh -c 'useradd -m -s /bin/bash -G sudo admin && echo "admin:integration-only" | chpasswd'
 
 echo "First run."
-docker exec -e WARDEN_VERIFY_FILE=/etc/passwd "$container" bash /root/warden/install.sh /root/warden/warden.conf
+if ! docker exec -e WARDEN_VERIFY_FILE=/etc/passwd "$container" bash /root/warden/install.sh /root/warden/warden.conf; then
+    # The rootless daemon's own log and the kernel switch that most often stops it.
+    echo "The first run failed, rootless Docker log:" >&2
+    docker exec "$container" sh -c 'runuser -u deploy -- env XDG_RUNTIME_DIR=/run/user/$(id -u deploy) journalctl --user -u docker.service --no-pager -n 40; sysctl kernel.apparmor_restrict_unprivileged_userns' >&2 || true
+    exit 1
+fi
 
 echo "Second run, must change nothing."
 second=$(docker exec -e WARDEN_VERIFY_FILE=/etc/passwd "$container" bash /root/warden/install.sh /root/warden/warden.conf 2>&1)
