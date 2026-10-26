@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Lint
-        run: shellcheck -x -S style install.sh provision.sh keys.sh library/*.sh modules/*.sh tests/integration/*.sh
+        run: shellcheck -x -S style install.sh provision.sh keys.sh library/*.sh modules/*.sh files/*.sh tests/integration/*.sh
       - name: Syntax
         run: for file in install.sh provision.sh keys.sh library/*.sh modules/*.sh; do bash -n "$file"; done
 
