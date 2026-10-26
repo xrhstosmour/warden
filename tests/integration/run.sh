@@ -46,12 +46,27 @@ DEPLOY_USER=deploy
 DEPLOY_PUBLIC_KEY="$(cat "$temporary/deploy.pub")"
 SSH_PORT=2222
 SWAP_SIZE=0
+ALERTS=ntfy
+NTFY_SERVER=https://ntfy.invalid
+CLOUDFLARE_ONLY=yes
+BACKUP_REPOSITORY=rclone:local:/srv/backups
+BACKUP_PASSWORD_FILE=/root/warden/secrets/password
+BACKUP_RCLONE_CONFIG_FILE=/root/warden/secrets/rclone.conf
 EOF
 
-COPYFILE_DISABLE=1 tar -C "$directory" -czf - install.sh library modules files tests/integration/check.sh |
+COPYFILE_DISABLE=1 tar -C "$directory" -czf - install.sh library modules files tests/integration/check.sh tests/integration/curl.sh |
     docker exec -i "$container" sh -c 'mkdir -p /root/warden && tar -xzf - -C /root/warden'
 docker cp "$temporary/warden.conf" "$container:/root/warden/warden.conf"
 rm -rf "$temporary"
+
+# /etc/hostname is a bind mount here, the backup stays on one filesystem and
+# skips it, so the restore test reads /etc/passwd instead.
+# The backup secrets, as provision.sh uploads them. rclone writes to a folder
+# on the disk, no remote host is needed to prove the whole path.
+docker exec "$container" sh -c 'mkdir -p /root/warden/secrets && head -c 24 /dev/urandom | base64 >/root/warden/secrets/password && printf "[local]\ntype = local\n" >/root/warden/secrets/rclone.conf'
+
+# The Cloudflare ranges come from a fixed list, the run needs no network for them.
+docker exec "$container" install -m 0755 /root/warden/tests/integration/curl.sh /usr/local/bin/curl
 
 # Docker Desktop's kernel has netfilter built in, but the container cannot
 # see the list of built-in modules a real host has on disk.
@@ -61,10 +76,15 @@ docker exec "$container" sh -c 'mkdir -p "/lib/modules/$(uname -r)" && echo kern
 docker exec "$container" sh -c 'useradd -m -s /bin/bash -G sudo admin && echo "admin:integration-only" | chpasswd'
 
 echo "First run."
-docker exec "$container" bash /root/warden/install.sh /root/warden/warden.conf
+if ! docker exec -e WARDEN_VERIFY_FILE=/etc/passwd "$container" bash /root/warden/install.sh /root/warden/warden.conf; then
+    # The rootless daemon's own log and the kernel switch that most often stops it.
+    echo "The first run failed, rootless Docker log:" >&2
+    docker exec "$container" sh -c 'runuser -u deploy -- env XDG_RUNTIME_DIR=/run/user/$(id -u deploy) journalctl --user -u docker.service --no-pager -n 40; sysctl kernel.apparmor_restrict_unprivileged_userns' >&2 || true
+    exit 1
+fi
 
 echo "Second run, must change nothing."
-second=$(docker exec "$container" bash /root/warden/install.sh /root/warden/warden.conf 2>&1)
+second=$(docker exec -e WARDEN_VERIFY_FILE=/etc/passwd "$container" bash /root/warden/install.sh /root/warden/warden.conf 2>&1)
 echo "$second"
 if grep -E "Updated |Installing |Created |Masked |Removed |Added " <<<"$second"; then
     echo "The second run changed something, warden is not idempotent." >&2

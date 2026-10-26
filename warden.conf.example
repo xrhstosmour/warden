@@ -50,3 +50,88 @@ REBOOT_TIME="04:00"
 
 # Swap file size when the server has no swap, 0 for none.
 SWAP_SIZE=2G
+
+# yes: keeps /etc in git with etckeeper and commits what warden changed, so
+# every change is a diff you can read and undo. The history can hold old
+# copies of anything that was ever in /etc, root alone can read it. no: off.
+ETCKEEPER=yes
+
+# yes: prints load, disk, failed units, a pending reboot and listening ports
+# on every interactive SSH login. It only reads local state, nothing leaves
+# the server. no: off.
+LOGIN_STATUS=yes
+
+# yes: installs warden-audit, run it as `sudo warden-audit` to check the server
+# still matches what warden set up. It only reads, it changes nothing. no: off.
+AUDIT_TOOL=yes
+
+# Range Docker takes new container networks from, cut into /24 networks. Pick
+# one that overlaps neither your VPN, your tailnet nor the provider network.
+# Existing networks keep their range. Empty uses Docker's own default.
+DOCKER_ADDRESS_POOL=172.30.0.0/16
+
+# yes: every public port (PUBLIC_TCP_PORTS and PUBLIC_UDP_PORTS) answers Cloudflare's
+# address ranges only, refreshed daily, so nobody can reach the server around
+# the proxy. Off by default because it breaks anything not behind Cloudflare:
+# direct visits, monitors, and certificate checks that connect straight to
+# port 80, such as Let's Encrypt HTTP-01. Use a Cloudflare origin certificate
+# or DNS-01 for certificates. SSH is never touched by this. Cloudflare sees
+# all web traffic either way, this only closes the way around it.
+CLOUDFLARE_ONLY=no
+
+# Alerts to your phone through ntfy. Off by default, it needs the ntfy app
+# and sends text through the ntfy server you pick.
+#   no:   nothing is sent.
+#   ntfy: a full disk, a failed unit and optionally every SSH login.
+# warden makes a random topic on the server, which is the only password to
+# it, anyone who learns it can read your alerts or send fake ones. Read it
+# with `sudo cat /var/lib/warden/ntfy-topic` and subscribe to it in the app.
+# Messages carry the server name, never client addresses or secrets. A dead
+# or unreachable server sends nothing.
+ALERTS=no
+
+# https://ntfy.sh is the public server. Your own ntfy server works the same.
+NTFY_SERVER=https://ntfy.sh
+
+# Alert when / is this full, in percent, 50 to 99.
+ALERT_DISK_PERCENT=85
+
+# yes: also one alert per SSH login, with the user name only.
+ALERT_SSH_LOGIN=yes
+
+# Encrypted backups with restic. Off while BACKUP_REPOSITORY is empty. The
+# data is encrypted here before it leaves, the target only ever holds
+# ciphertext, though it sees that you back up, when, and how much.
+#   sftp:user@host:/path   any SFTP host, a laptop over Tailscale works while
+#                          it is awake and on
+#   rclone:remote:path     anything rclone reaches, such as Filen or Google
+#                          Drive. Filen needs rclone 1.73 or newer, the Debian
+#                          package may be older, warden warns when it is.
+BACKUP_REPOSITORY=""
+
+# Made on your machine, provision.sh copies them to the server, readable by
+# root alone. Use absolute paths. The password file holds one line, the restic
+# password: keep a copy off the server, without it the backups are unreadable.
+BACKUP_PASSWORD_FILE=""
+
+# sftp only: a private key made for backups alone, and the target's host key
+# so it is never trusted blindly. Get the line with
+# `ssh-keyscan -t ed25519 <host>`, check its fingerprint, paste it here.
+BACKUP_SSH_KEY_FILE=""
+BACKUP_HOST_KEY=""
+BACKUP_SSH_PORT=22
+
+# rclone only: the rclone.conf you made on your machine with `rclone config`.
+BACKUP_RCLONE_CONFIG_FILE=""
+
+# Backed up besides /etc, which is always included. Databases need a dump
+# first, a copy of their live files may not restore. Docker images are skipped.
+BACKUP_PATHS="/home"
+
+# Server time, with a few minutes of random delay.
+BACKUP_TIME="03:30"
+
+# How many daily, weekly and monthly snapshots are kept.
+BACKUP_KEEP_DAILY=7
+BACKUP_KEEP_WEEKLY=4
+BACKUP_KEEP_MONTHLY=6

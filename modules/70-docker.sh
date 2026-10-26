@@ -76,6 +76,12 @@ rootlesskit_major="${rootlesskit_major:-0}"
 daemon_options='"log-driver": "local",
     "log-opts": { "max-size": "20m", "max-file": "5" },
     "no-new-privileges": true'
+# New container networks take their ranges from here, so they never overlap
+# a VPN or provider network. Existing networks keep the range they have.
+if uses_docker_pool; then
+    daemon_options+=",
+    \"default-address-pools\": [{ \"base\": \"$DOCKER_ADDRESS_POOL\", \"size\": 24 }]"
+fi
 if ((rootlesskit_major >= 3)); then
     daemon_options+=',
     "userland-proxy": false'

@@ -12,6 +12,25 @@ setup() {
     SSH_ACCESS=public
     TAILSCALE_AUTH_KEY=""
     TAILSCALE_SSH=no
+    ETCKEEPER=yes
+    LOGIN_STATUS=yes
+    AUDIT_TOOL=yes
+    DOCKER_ADDRESS_POOL=172.30.0.0/16
+    ALERTS=no
+    NTFY_SERVER=https://ntfy.sh
+    ALERT_DISK_PERCENT=85
+    ALERT_SSH_LOGIN=yes
+    BACKUP_REPOSITORY=""
+    BACKUP_PASSWORD_FILE=""
+    BACKUP_SSH_KEY_FILE=""
+    BACKUP_RCLONE_CONFIG_FILE=""
+    BACKUP_HOST_KEY=""
+    BACKUP_SSH_PORT=22
+    BACKUP_PATHS="/home"
+    BACKUP_TIME="03:30"
+    BACKUP_KEEP_DAILY=7
+    BACKUP_KEEP_WEEKLY=4
+    BACKUP_KEEP_MONTHLY=6
 }
 
 @test "a complete configuration passes" {
@@ -105,6 +124,117 @@ setup() {
     [[ "$output" == *"exclude each other"* ]]
 }
 
+@test "etckeeper accepts only yes or no" {
+    ETCKEEPER=maybe
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"ETCKEEPER"* ]]
+}
+
+@test "the login status accepts only yes or no" {
+    LOGIN_STATUS=maybe
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"LOGIN_STATUS"* ]]
+}
+
+@test "the audit tool accepts only yes or no" {
+    AUDIT_TOOL=maybe
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"AUDIT_TOOL"* ]]
+}
+
+@test "the Docker address pool must be a private range or empty" {
+    DOCKER_ADDRESS_POOL=""
+    run validate_configuration
+    [ "$status" -eq 0 ]
+    for pool in 8.8.8.0/24 172.30.0.0/28 172.30.0.0 not-a-range 10.999.0.0/16 10.0/16 172.16.5.0/16 10.1.2.3/8 192.168.0.0/8 172.32.0.0/16; do
+        DOCKER_ADDRESS_POOL="$pool"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"DOCKER_ADDRESS_POOL"* ]]
+    done
+}
+
+@test "alerts accept only no or ntfy, over https, with a sensible disk threshold" {
+    for assignment in ALERTS=signal NTFY_SERVER=http://ntfy.sh NTFY_SERVER=ntfy.sh ALERT_DISK_PERCENT=10 ALERT_DISK_PERCENT=100 ALERT_SSH_LOGIN=maybe; do
+        setup
+        printf -v "${assignment%%=*}" '%s' "${assignment#*=}"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"${assignment%%=*}"* ]]
+    done
+}
+
+@test "an sftp backup needs its password, key and a pinned host key" {
+    BACKUP_REPOSITORY=sftp:backup@laptop:/srv/warden
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"BACKUP_PASSWORD_FILE"* ]]
+    [[ "$output" == *"BACKUP_SSH_KEY_FILE"* ]]
+    [[ "$output" == *"BACKUP_HOST_KEY"* ]]
+
+    BACKUP_PASSWORD_FILE=/home/me/backup-password
+    BACKUP_SSH_KEY_FILE=/home/me/backup-key
+    BACKUP_HOST_KEY="laptop ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOSWAHsCf+sZ6GEGPlRvVDuNAa/vjrxWpqgaFxT/Dsxt"
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "the backup host key must belong to the host and port the backups connect to" {
+    BACKUP_REPOSITORY=sftp:backup@laptop:/srv/warden
+    BACKUP_PASSWORD_FILE=/home/me/backup-password
+    BACKUP_SSH_KEY_FILE=/home/me/backup-key
+    key="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOSWAHsCf+sZ6GEGPlRvVDuNAa/vjrxWpqgaFxT/Dsxt"
+
+    BACKUP_HOST_KEY="other-host $key"
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"must start with laptop"* ]]
+
+    BACKUP_SSH_PORT=2200
+    BACKUP_HOST_KEY="laptop $key"
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"must start with [laptop]:2200"* ]]
+
+    BACKUP_HOST_KEY="[laptop]:2200 $key"
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "an rclone backup needs its password and configuration file" {
+    BACKUP_REPOSITORY=rclone:filen:warden
+    run validate_configuration
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"BACKUP_RCLONE_CONFIG_FILE"* ]]
+
+    BACKUP_PASSWORD_FILE=/home/me/backup-password
+    BACKUP_RCLONE_CONFIG_FILE=/home/me/rclone.conf
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "a backup repository that is neither sftp nor rclone is refused" {
+    BACKUP_PASSWORD_FILE=/home/me/backup-password
+    for repository in "s3:bucket/path" "sftp:host:/path" 'sftp:u@h:/p;rm' "rclone:remote"; do
+        BACKUP_REPOSITORY="$repository"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+        [[ "$output" == *"BACKUP_REPOSITORY"* ]]
+    done
+}
+
+@test "backup paths, time and retention are checked" {
+    for assignment in 'BACKUP_PATHS=relative/path' 'BACKUP_PATHS=/home;reboot' BACKUP_TIME=25:00 BACKUP_KEEP_DAILY=many BACKUP_SSH_PORT=0; do
+        setup
+        printf -v "${assignment%%=*}" '%s' "${assignment#*=}"
+        run validate_configuration
+        [ "$status" -eq 1 ]
+    done
+}
+
 @test "Tailscale is used only when asked for" {
     run uses_tailscale
     [ "$status" -eq 1 ]
@@ -113,3 +243,16 @@ setup() {
     [ "$status" -eq 0 ]
 }
 
+
+@test "the feature list says what is on and what is off" {
+    run describe_features
+    [[ "$output" == *"etckeeper"*"on"* ]]
+    [[ "$output" == *"alerts"*"off"*"ALERTS=ntfy"* ]]
+    [[ "$output" == *"backups"*"off"*"BACKUP_REPOSITORY"* ]]
+    ALERTS=ntfy
+    BACKUP_REPOSITORY=sftp:backup@laptop:/srv/warden
+    CLOUDFLARE_ONLY=yes
+    run describe_features
+    [[ "$output" == *"alerts"*"on"* ]]
+    [[ "$output" == *"Cloudflare only"*"on"* ]]
+}

@@ -89,3 +89,31 @@ setup() {
     [[ "$output" != *"41641"* ]]
 }
 
+
+@test "with Cloudflare only the web ports answer its ranges and nobody else" {
+    CLOUDFLARE_ONLY=yes
+    CLOUDFLARE_DIRECTORY=$(mktemp -d)
+    printf '203.0.113.0/24\n198.51.100.0/24\n' >"$CLOUDFLARE_DIRECTORY/ipv4"
+    printf '2001:db8::/32\n' >"$CLOUDFLARE_DIRECTORY/ipv6"
+    run render_nftables
+    [[ "$output" == *"elements = { 203.0.113.0/24,198.51.100.0/24 }"* ]]
+    [[ "$output" == *"elements = { 2001:db8::/32 }"* ]]
+    [[ "$output" == *"ip saddr @cloudflare4 tcp dport { 80,443 } accept"* ]]
+    [[ "$output" == *"ip6 saddr @cloudflare6 udp dport { 443 } accept"* ]]
+    [[ "$output" != *"        tcp dport { 80,443 } accept"* ]]
+    [[ "$output" == *"tcp dport 2222 accept"* ]]
+}
+
+@test "without Cloudflare only, the firewall has no sets" {
+    run render_nftables
+    [[ "$output" != *"cloudflare"* ]]
+}
+
+@test "Cloudflare only with nothing cached declares both sets, empty" {
+    CLOUDFLARE_ONLY=yes
+    CLOUDFLARE_DIRECTORY=$(mktemp -d)
+    run render_nftables
+    [[ "$output" == *"set cloudflare4 {"* ]]
+    [[ "$output" == *"set cloudflare6 {"* ]]
+    [[ "$output" != *"elements ="* ]]
+}
