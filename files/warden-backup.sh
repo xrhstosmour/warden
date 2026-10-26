@@ -3,8 +3,8 @@
 # Encrypted backups with restic: warden-backup [init|has-snapshots|backup|check|verify]
 #   init    start the repository at the target when it is not there yet
 #   has-snapshots  succeed when at least one backup exists
-#   backup  back up, then drop snapshots past the retention (default)
-#   check   verify the repository structure
+#   backup  back up, then forget snapshots past the retention (default)
+#   check   verify the repository structure, then free the space of forgotten snapshots
 #   verify  restore one file from the latest snapshot and compare it
 # A failure sends an alert when alerts are on, then exits non-zero.
 
@@ -65,12 +65,16 @@ backup)
         --exclude '/home/*/.local/share/docker/containers' \
         --exclude '/home/*/.local/share/docker/buildkit' ||
         fail_with_alert "restic backup did not finish."
-    restic "${options[@]}" forget --prune --keep-daily "$BACKUP_KEEP_DAILY" \
+    restic "${options[@]}" forget --keep-daily "$BACKUP_KEEP_DAILY" \
         --keep-weekly "$BACKUP_KEEP_WEEKLY" --keep-monthly "$BACKUP_KEEP_MONTHLY" ||
         fail_with_alert "restic could not apply the retention."
     ;;
 check)
+    # The structure is checked first, a damaged repository is not rewritten.
     restic "${options[@]}" check || fail_with_alert "restic check found a problem in the repository."
+    # Forgotten snapshots free their space here, a prune rewrites packs and
+    # holds the repository lock, which is too heavy for every day.
+    restic "${options[@]}" prune || fail_with_alert "restic could not free the space of forgotten snapshots."
     ;;
 verify)
     restore=$(mktemp -d)

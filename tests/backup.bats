@@ -65,6 +65,18 @@ teardown() {
     grep -q 'ServerAliveCountMax=4' "$work/restic-arguments"
 }
 
+@test "the daily backup forgets old snapshots and leaves the prune to the weekly check" {
+    run "$script" backup
+    grep -q ' forget ' "$work/restic-arguments"
+    [ -z "$(grep -e '--prune' -e ' prune$' "$work/restic-arguments")" ]
+    run "$script" check
+    [ "$status" -eq 0 ]
+    grep -q ' prune$' "$work/restic-arguments"
+    grep -q ' check$' "$work/restic-arguments"
+    # A damaged repository is found before anything rewrites it.
+    [ "$(grep -n ' check$' "$work/restic-arguments" | tail -1 | cut -d: -f1)" -lt "$(grep -n ' prune$' "$work/restic-arguments" | tail -1 | cut -d: -f1)" ]
+}
+
 @test "every command that reads or changes snapshots takes the same lock" {
     for command in backup check verify has-snapshots; do
         run "$script" "$command"
