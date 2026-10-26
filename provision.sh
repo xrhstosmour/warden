@@ -5,7 +5,9 @@
 #
 # The first time, that is the provider's initial login, root@203.0.113.10
 # or debian@203.0.113.10. Afterwards it is the admin on the new port,
-# ./provision.sh admin@203.0.113.10 -p 2222 -i ~/.ssh/app_admin.
+# ./provision.sh admin@203.0.113.10 -p 2222 -i ~/.ssh/app_admin. With SSH kept
+# to the tailnet that is Tailscale SSH on port 22 of the server's tailnet
+# address, ./provision.sh admin@100.64.0.1 -p 22.
 #
 # With the public keys left empty in warden.conf, it first makes an
 # ed25519 key pair per account on this machine, where they stay. Then it
@@ -125,26 +127,53 @@ login_host="$host"
 if [[ "$SSH_ACCESS" == "tailscale" ]]; then
     login_host=$(grep -o 'WARDEN_TAILSCALE_ADDRESS=[0-9.]*' "$output" | tail -1 | cut -d= -f2 || true)
     [[ -n "$login_host" ]] ||
-        fail "warden did not report a tailnet address. Public SSH reopens on port $SSH_PORT in 15 minutes."
+        fail "warden did not report a tailnet address. Public SSH reopens on port $SSH_PORT $(rollback_minutes) minutes after SSH moved."
 fi
 
-# Only the key made for an account, when there is one, so a pass proves
-# that key works rather than whichever the agent offered first. Sets
+# Where and how the logins are made. The tailnet policy grants port 22 only,
+# which Tailscale SSH serves, signed in by the tailnet and never as root.
+# Otherwise only the key made for an account, when there is one, so a pass
+# proves that key works rather than whichever the agent offered first. Sets
 # `options`, macOS ships bash 3, which has no `mapfile`.
+login_port="$SSH_PORT"
+uses_tailscale_ssh_login && login_port=22
 identity_options() {
-    options=(-p "$SSH_PORT")
-    if [[ -f "$1" ]]; then
+    options=(-p "$login_port")
+    if uses_tailscale_ssh_login; then
+        # The tailnet already authenticated the server, the host key is new.
+        options+=(-o StrictHostKeyChecking=accept-new)
+    elif [[ -f "$1" ]]; then
         options+=(-i "$1" -o IdentitiesOnly=yes)
     fi
 }
 
-log_info "Checking that both accounts can log in to $login_host on port $SSH_PORT."
+# One login proof. On the tailnet the policy asks for a browser approval
+# first, so ssh runs without BatchMode to show the URL it prints. Both
+# accounts share `login_approval_seconds`, which `rollback_minutes` counts.
+login_approval_seconds=900
+login_deadline=$(($(date +%s) + login_approval_seconds))
+check_login() {
+    local account="$1" identity="$2"
+    identity_options "$identity"
+    if uses_tailscale_ssh_login; then
+        log_info "$account: if Tailscale prints a URL, open it in your browser to approve the login."
+        local status=0 remaining=$((login_deadline - $(date +%s)))
+        ((remaining >= 1)) || remaining=1
+        within "$remaining" ssh -o ConnectTimeout=10 "${options[@]}" "$account@$login_host" true || status=$?
+        if ((status == 124)); then
+            log_error "$account was not approved in time, $((login_approval_seconds / 60)) minutes are shared by both accounts."
+        fi
+        return "$status"
+    fi
+    ssh -o BatchMode=yes -o ConnectTimeout=10 "${options[@]}" "$account@$login_host" true
+}
+
+log_info "Checking that both accounts can log in to $login_host on port $login_port."
 failures=0
 for account in "$ADMIN_USER" "$DEPLOY_USER"; do
     identity="$deploy_identity"
     [[ "$account" == "$ADMIN_USER" ]] && identity="$admin_identity"
-    identity_options "$identity"
-    if ssh -o BatchMode=yes -o ConnectTimeout=10 "${options[@]}" "$account@$login_host" true; then
+    if check_login "$account" "$identity"; then
         log_success "$account logs in."
     else
         log_error "$account could not log in. Check before closing any open session."
@@ -153,16 +182,18 @@ for account in "$ADMIN_USER" "$DEPLOY_USER"; do
 done
 
 if ((failures > 0)); then
-    [[ "$SSH_ACCESS" == "tailscale" ]] && log_warning "Public SSH reopens on port $SSH_PORT in 15 minutes, to fix it from there."
+    [[ "$SSH_ACCESS" == "tailscale" ]] && log_warning "Public SSH reopens on port $SSH_PORT $(rollback_minutes) minutes after SSH moved, to fix it from there."
     exit 1
 fi
 
 if [[ "$SSH_ACCESS" == "tailscale" ]]; then
     log_info "The tailnet login works, keeping SSH on it. sudo asks for the admin password."
     identity_options "$admin_identity"
+    # A timer that already fired left a public rule for SSH_PORT behind, then
+    # stopping it would claim a tailnet only server that is not one.
     ssh -t "${options[@]}" "$ADMIN_USER@$login_host" \
-        "sudo systemctl stop warden-ssh-rollback.timer" ||
-        fail "The rollback is still pending, run: sudo systemctl stop warden-ssh-rollback.timer"
+        "sudo sh -c 'if systemctl is-active -q warden-ssh-rollback.timer; then systemctl stop warden-ssh-rollback.timer; elif nft list chain inet warden input | grep -q \"^[[:space:]]*tcp dport $SSH_PORT accept\"; then exit 3; fi'" ||
+        fail "The rollback timer fired before the login was proved, so public SSH on port $SSH_PORT is open again. Run provision.sh again."
 fi
 
 # A Host entry per account, in a file of its own next to the keys.
@@ -179,9 +210,9 @@ ssh_configuration="$key_directory/$name.config"
         echo
         echo "Host $name-$role"
         echo "    HostName $login_host"
-        echo "    Port $SSH_PORT"
+        echo "    Port $login_port"
         echo "    User $account"
-        if [[ -f "$identity" ]]; then
+        if [[ -f "$identity" ]] && ! uses_tailscale_ssh_login; then
             echo "    IdentityFile $identity"
             echo "    IdentitiesOnly yes"
         fi

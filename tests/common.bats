@@ -80,3 +80,15 @@ EOF
     # Every read and write went through the owner, none as root.
     [ "$(sort -u "$BATS_TEST_TMPDIR/runuser-users")" = "deploy" ]
 }
+
+@test "a command that finishes in time keeps its own status" {
+    run within 5 true
+    [ "$status" -eq 0 ]
+    run within 5 sh -c 'exit 3'
+    [ "$status" -eq 3 ]
+}
+
+@test "a command that runs too long is stopped with status 124" {
+    run within 1 sleep 30
+    [ "$status" -eq 124 ]
+}
