@@ -2,7 +2,7 @@
 
 ## What this is
 
-warden hardens a fresh Debian 13 server for hosting containers. `install.sh` runs on the server as root and executes every `modules/*.sh` in name order, each in its own subshell. `provision.sh` and `keys.sh` run on the operator's machine, under the bash 3 macOS ships, so no `mapfile` or other bash 4 features there.
+warden hardens a fresh Debian 13 server for hosting containers. `install.sh` runs on the server as root and executes every `modules/*.sh` in name order, each in its own subshell. `provision.sh`, `keys.sh` and `setup.sh` (asks questions, writes `warden.conf`, never overwrites one) run on the operator's machine, under the bash 3 macOS ships, so no `mapfile` or other bash 4 features there.
 
 ## Layout
 
@@ -19,6 +19,7 @@ warden hardens a fresh Debian 13 server for hosting containers. `install.sh` run
 - No lockout: SSH moves last, in `90-ssh.sh`. Until then the firewall keeps the port SSH listens on now open to everyone, also with `SSH_ACCESS=tailscale`, and `90-ssh.sh` closes it after the move. With `SSH_ACCESS=tailscale` it also schedules `warden-ssh-rollback`, which reopens public SSH `rollback_minutes` (40) after the move unless `provision.sh` proves a tailnet login and stops it. Validate before restarting, `sshd -t`, `nft -c`, `visudo -c`, `fail2ban-client -t`.
 - Tailscale is optional, `uses_tailscale` decides. A joined server must carry `TAILSCALE_TAG`, validated, because an untagged machine counts as a personal device in the tailnet policy. With `SSH_ACCESS=tailscale` SSH is Tailscale SSH on port 22, the only port the policy grants, as a non-root user. `25-tailscale.sh` returns early without it, and runs before the firewall, so the tailnet is up before SSH is kept to it. The auth key is read from a file, never passed on a command line.
 - Keys are made on the operator's machine, never on the server. `provision.sh` makes them with `keys.sh` only when `warden.conf` leaves the public keys empty, `WARDEN_KEYS` overrides `~/.ssh` for tests. Backup passwords and keys follow the same rule, `provision.sh` uploads them. The one exception is the `ntfy` topic, a random value made on the server that guards nothing but the alerts.
+- A Cloudflare Tunnel means no public port, `validate_configuration` refuses one beside `PUBLIC_*_PORTS` or `CLOUDFLARE_ONLY`. `29-cloudflared.sh` takes the token from the uploaded file, never from a command line.
 - Never weaken a default without a comment saying why the server needs it.
 - Unprivileged user namespaces must stay enabled, rootless Docker depends on them.
 - The system wide Docker daemon stays masked. Nothing joins the `docker` group, it is root equivalent.
@@ -34,7 +35,7 @@ bats tests/
 tests/integration/run.sh
 ```
 
-The integration run needs Docker and runs privileged. It cannot join a tailnet, so check Tailscale changes with `bats` and by hand on a real server. Kernel parameters it sets apply to the Docker host's kernel, on Docker Desktop that is its virtual machine.
+The integration run needs Docker and runs privileged. It cannot join a tailnet, so check Tailscale changes with `bats` and by hand on a real server. It does run the real `cloudflared` with a made up token (`tests/integration/tunnel.sh`), on, rerun, token change and off, which proves the unit starts under its sandbox but not that traffic flows, it needs the network for `pkg.cloudflare.com`. Kernel parameters it sets apply to the Docker host's kernel, on Docker Desktop that is its virtual machine.
 
 ## Commits
 
