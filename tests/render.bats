@@ -161,3 +161,25 @@ setup() {
     [[ "$output" == *"set cloudflare6 {"* ]]
     [[ "$output" != *"elements ="* ]]
 }
+
+@test "with no public port the Tailscale direct port is closed too" {
+    SSH_ACCESS=tailscale
+    TAILSCALE_SSH=yes
+    PUBLIC_TCP_PORTS=""
+    PUBLIC_UDP_PORTS=""
+    run render_nftables
+    [[ "$output" != *"41641"* ]]
+    [[ "$output" != *"tcp dport { "* ]]
+    [[ "$output" != *"udp dport { "* ]]
+}
+
+@test "the tunnel service runs unprivileged and takes the token from a file" {
+    run render_cloudflared_unit
+    [[ "$output" == *"User=cloudflared"* ]]
+    [[ "$output" == *"EnvironmentFile=/etc/cloudflared/token.env"* ]]
+    [[ "$output" == *"NoNewPrivileges=yes"* ]]
+    [[ "$output" == *"AF_NETLINK"* ]]
+    [[ "$output" == *"CapabilityBoundingSet="$'\n'* ]]
+    # The token must never sit on the command line, every process can read it.
+    [[ "$output" != *"--token"* ]]
+}

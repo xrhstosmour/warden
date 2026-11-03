@@ -29,6 +29,11 @@ NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
 ALERT_DISK_PERCENT="${ALERT_DISK_PERCENT:-85}"
 ALERT_SSH_LOGIN="${ALERT_SSH_LOGIN:-yes}"
 CLOUDFLARE_ONLY="${CLOUDFLARE_ONLY:-no}"
+CLOUDFLARE_TUNNEL_TOKEN_FILE="${CLOUDFLARE_TUNNEL_TOKEN_FILE:-}"
+# Where the server keeps the token for the unit, read by the module, the unit
+# and the audit alike.
+# shellcheck disable=SC2034 # Read by the module, `render_cloudflared_unit` and the audit.
+CLOUDFLARED_ENVIRONMENT_FILE=/etc/cloudflared/token.env
 BACKUP_REPOSITORY="${BACKUP_REPOSITORY:-}"
 BACKUP_PASSWORD_FILE="${BACKUP_PASSWORD_FILE:-}"
 BACKUP_SSH_KEY_FILE="${BACKUP_SSH_KEY_FILE:-}"
@@ -91,6 +96,12 @@ uses_cloudflare() {
     [[ "$CLOUDFLARE_ONLY" == "yes" ]]
 }
 
+# Whether web traffic arrives through a Cloudflare Tunnel, which only dials
+# out, so the server needs no public port for it.
+uses_cloudflare_tunnel() {
+    [[ -n "$CLOUDFLARE_TUNNEL_TOKEN_FILE" ]]
+}
+
 # Whether encrypted backups run.
 uses_backups() {
     [[ -n "$BACKUP_REPOSITORY" ]]
@@ -106,6 +117,29 @@ is_public_key() {
 
 is_username() {
     [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,30}$ ]] && [[ "$1" != "root" ]]
+}
+
+# The roles the tailnet policy defines, the one list `setup.sh` offers and
+# `validate_configuration` accepts.
+# shellcheck disable=SC2034 # Read by `setup.sh`.
+TAILSCALE_ROLES="server web shared internal"
+
+is_tailscale_tag() {
+    [[ "$1" == tag:* && " $TAILSCALE_ROLES " == *" ${1#tag:} "* ]]
+}
+
+# A Cloudflare Tunnel token as the dashboard shows it, one run of base64
+# characters. Only its shape is checked, nothing here can tell whether
+# Cloudflare knows it.
+is_tunnel_token() {
+    [[ "$1" =~ ^[A-Za-z0-9+/=_-]{20,}$ ]]
+}
+
+# An existing file no group or other bit reaches. `find -perm -077` would
+# match only when every one of those bits is set, so each is listed.
+is_private_file() {
+    [[ -f "$1" ]] &&
+        [[ -z "$(find "$1" \( -perm -040 -o -perm -020 -o -perm -010 -o -perm -004 -o -perm -002 -o -perm -001 \) 2>/dev/null)" ]]
 }
 
 # A network in the private blocks, wide enough to be cut into /24 networks,
@@ -171,7 +205,7 @@ validate_configuration() {
     fi
     # No default, an untagged machine of the owner counts as a personal device
     # in the tailnet policy and reaches everything.
-    if uses_tailscale && [[ ! "$TAILSCALE_TAG" =~ ^tag:(server|web|shared|internal)$ ]]; then
+    if uses_tailscale && ! is_tailscale_tag "$TAILSCALE_TAG"; then
         problems+=("TAILSCALE_TAG must be tag:server, tag:web, tag:shared or tag:internal, a server without a tag gets the access of a personal device.")
     fi
     # The policy grants the tailnet port 22 only, plain sshd listens elsewhere.
@@ -197,6 +231,13 @@ validate_configuration() {
     [[ "$LOGIN_STATUS" =~ ^(yes|no)$ ]] || problems+=("LOGIN_STATUS must be yes or no.")
     [[ "$AUDIT_TOOL" =~ ^(yes|no)$ ]] || problems+=("AUDIT_TOOL must be yes or no.")
     [[ "$CLOUDFLARE_ONLY" =~ ^(yes|no)$ ]] || problems+=("CLOUDFLARE_ONLY must be yes or no.")
+    if uses_cloudflare_tunnel; then
+        # A tunnel plus an open port leaves the way around the tunnel open.
+        [[ -z "$PUBLIC_TCP_PORTS$PUBLIC_UDP_PORTS" ]] ||
+            problems+=("CLOUDFLARE_TUNNEL_TOKEN_FILE needs PUBLIC_TCP_PORTS and PUBLIC_UDP_PORTS empty, the tunnel is the only way in.")
+        [[ "$CLOUDFLARE_ONLY" == "no" ]] ||
+            problems+=("CLOUDFLARE_TUNNEL_TOKEN_FILE and CLOUDFLARE_ONLY=yes exclude each other, a tunnel leaves no public port to limit.")
+    fi
     [[ "$ALERTS" =~ ^(no|ntfy)$ ]] || problems+=("ALERTS must be no or ntfy.")
     [[ "$NTFY_SERVER" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || problems+=("NTFY_SERVER must be an https address, such as https://ntfy.sh.")
     [[ "$ALERT_DISK_PERCENT" =~ ^([5-9][0-9])$ ]] || problems+=("ALERT_DISK_PERCENT must be from 50 to 99.")
@@ -258,5 +299,6 @@ describe_features() {
     print_feature "Docker address pool" "$(uses_docker_pool && echo on || echo off)" "DOCKER_ADDRESS_POOL=${DOCKER_ADDRESS_POOL:-the Docker default}"
     print_feature "alerts" "$(uses_alerts && echo on || echo off)" "ALERTS=ntfy, phone alerts for disk, units and SSH logins"
     print_feature "backups" "$(uses_backups && echo on || echo off)" "BACKUP_REPOSITORY, encrypted restic backups"
+    print_feature "Cloudflare Tunnel" "$(uses_cloudflare_tunnel && echo on || echo off)" "CLOUDFLARE_TUNNEL_TOKEN_FILE, web traffic with no public port"
     print_feature "Cloudflare only" "$(uses_cloudflare && echo on || echo off)" "CLOUDFLARE_ONLY, public ports for Cloudflare alone"
 }

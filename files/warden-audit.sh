@@ -28,9 +28,25 @@ check() {
 sshd_value() { sshd -T 2>/dev/null | awk -v key="$1" '$1 == key { print $2; exit }'; }
 sysctl_value() { sysctl -n "$1" 2>/dev/null; }
 
+# TCP listeners on every address except the one SSH is on. Behind a tunnel a
+# container published on all addresses reaches the firewall's drop and nothing
+# more, but it is one rule away from public, so it is reported.
+wide_listeners() {
+    ss -Htln | awk -v ssh="$(sshd_value port)" '
+        { split($4, parts, ":"); port = parts[length(parts)] }
+        ($4 ~ /^(0\.0\.0\.0|\*|\[::\]):/) && port != ssh { print $4 }'
+}
+
 check "SSH is not on port 22" test "$(sshd_value port)" != 22
 check "SSH refuses root" test "$(sshd_value permitrootlogin)" = no
 check "SSH refuses passwords" test "$(sshd_value passwordauthentication)" = no
+# Keyed on the token warden placed, not on the service, a disabled or removed
+# service is the failure this is here to catch. The path is
+# `CLOUDFLARED_ENVIRONMENT_FILE`, this script runs alone on the server.
+if [[ -f /etc/cloudflared/token.env ]]; then
+    check "the tunnel service runs" systemctl is-active cloudflared.service
+    check "behind the tunnel nothing listens on all addresses" test -z "$(wide_listeners)"
+fi
 check "the firewall drops inbound by default" sh -c 'nft list chain inet warden input | grep -q "policy drop"'
 check "no other firewall front end is installed" sh -c '! dpkg -s ufw firewalld 2>/dev/null | grep -q "Status: install ok installed"'
 check "fail2ban watches SSH" fail2ban-client status sshd
@@ -42,6 +58,8 @@ check "nobody is in the docker group" sh -c '! getent group docker | cut -d: -f4
 check "kernel pointers are hidden" test "$(sysctl_value kernel.kptr_restrict)" = 2
 check "ptrace is limited to parents" test "$(sysctl_value kernel.yama.ptrace_scope)" -ge 2
 check "SYN cookies are on" test "$(sysctl_value net.ipv4.tcp_syncookies)" = 1
+# A kernel without MPTCP has no key, which is as good as off.
+check "Multipath TCP is off" test "$(sysctl_value net.mptcp.enabled)" != 1
 check "user namespaces stay on for rootless Docker" test "$(sysctl_value user.max_user_namespaces)" -gt 0
 check "core dumps are off" sh -c 'grep -q "Storage=none" /etc/systemd/coredump.conf.d/warden.conf'
 check "sudo still parses" visudo -cq

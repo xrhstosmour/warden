@@ -102,7 +102,9 @@ EOF
         [[ -n "$tcp_ports" ]] && echo "        tcp dport { $tcp_ports } accept"
         [[ -n "$udp_ports" ]] && echo "        udp dport { $udp_ports } accept"
     fi
-    if uses_tailscale; then
+    # With no public port at all, this would be the only one. Tailscale falls
+    # back to its relays without it, slower, but nothing is left listening.
+    if uses_tailscale && [[ -n "$tcp_ports$udp_ports" ]]; then
         echo ""
         echo "        # Tailscale's own port, for direct connections rather than relays."
         echo "        udp dport 41641 accept"
@@ -217,4 +219,42 @@ findtime = 1d
 maxretry = 3
 bantime = 1w
 EOF
+}
+
+# The `cloudflared` service. Hardened like the other units, the tunnel needs
+# the network and nothing else on the machine. No automatic update, apt does
+# that. AF_NETLINK is kept because Go reads the interface list through it,
+# without it the process can fail before it dials out. The body has no
+# characters the shell would expand.
+render_cloudflared_unit() {
+    cat <<EOS
+# Managed by warden, local changes are overwritten on the next run.
+[Unit]
+Description=Cloudflare Tunnel
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=cloudflared
+EnvironmentFile=$CLOUDFLARED_ENVIRONMENT_FILE
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel run
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
+EOS
 }

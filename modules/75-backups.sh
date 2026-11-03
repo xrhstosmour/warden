@@ -47,9 +47,6 @@ place_secret() {
         (umask 077 && printf '%s\n' "$fingerprint" >"$fingerprint_file")
         log_info "Updated $target."
     fi
-    if [[ "$source" == "$WARDEN_DIRECTORY/secrets/"* ]]; then
-        rm -f "$source"
-    fi
 }
 
 place_secret "$BACKUP_PASSWORD_FILE" "$secrets/password"

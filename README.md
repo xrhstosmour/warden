@@ -22,9 +22,11 @@ Hardens a fresh Debian VPS for containers in one command, run from your own mach
 
 ```bash
 git clone https://github.com/xrhstosmour/warden && cd warden
-cp warden.conf.example warden.conf
+./setup.sh
 ./provision.sh root@<server-address>
 ```
+
+`./setup.sh` asks a few questions and writes `warden.conf`, SSH over your tailnet or public, web through a Cloudflare Tunnel, open ports or none, the tailnet tag. Secrets are asked for without echo. The tunnel token is kept in `~/.warden`, readable by you alone, and `warden.conf` names it. A one-off Tailscale auth key goes into `warden.conf` itself, which only you can read. It never overwrites a `warden.conf` or a token file from another server. Or skip it, `cp warden.conf.example warden.conf` and edit the comments by hand.
 
 It makes an SSH key pair per account, asks for the admin's `sudo` password, checks both accounts log in on the new port, and writes an SSH config next to the keys, so `ssh app-admin` and `ssh app-deploy` work. Later runs go through the admin, `./provision.sh <server-administrator-username>@<server-address> -p <server-ssh-port>`, or with SSH kept to the tailnet, `-p 22` and the server's tailnet address.
 
@@ -40,6 +42,7 @@ Debian 13 (trixie) only. On another Debian release warden warns and carries on, 
 - `download.docker.com`, Docker's `apt` repository, its signing key is pinned to the fingerprint Docker publishes. Unattended upgrades take Docker packages from it too, and reboot the server when a kernel needs it. A bad Docker release would reach every server within a day, hold the packages with `apt-mark hold` if you want to update them by hand.
 - `pkgs.tailscale.com`, only with Tailscale, pinned and updated the same way.
 - `www.cloudflare.com`, only with `CLOUDFLARE_ONLY=yes`, for the address ranges.
+- `pkg.cloudflare.com` and Cloudflare's tunnel network, only with `CLOUDFLARE_TUNNEL_TOKEN_FILE`, for `cloudflared` and the tunnel itself.
 - `NTFY_SERVER`, only with `ALERTS=ntfy`, and the backup target, only with `BACKUP_REPOSITORY`.
 
 Nothing else is contacted, and nothing is sent to the author of warden.
@@ -102,3 +105,20 @@ Backups run daily at `BACKUP_TIME` and `/etc` is always included. A weekly job r
 ## Cloudflare only
 
 `CLOUDFLARE_ONLY=yes` lets only Cloudflare's address ranges reach every port in `PUBLIC_TCP_PORTS` and `PUBLIC_UDP_PORTS`, refreshed daily, so nobody reaches the server around the proxy. It is off by default because it breaks anything not behind Cloudflare: direct visits, monitors, and certificate checks that connect straight to port 80, such as Let's Encrypt HTTP-01. Use a Cloudflare origin certificate or DNS-01 instead. If the ranges cannot be fetched the run stops, and a refresh that returns bad data keeps the ranges already in place. SSH is not affected. Cloudflare sees all web traffic either way, this only closes the way around it.
+
+## Cloudflare Tunnel
+
+`CLOUDFLARE_TUNNEL_TOKEN_FILE` names a file on your machine holding a tunnel token from the Zero Trust dashboard. `provision.sh` uploads it, `cloudflared` dials out to Cloudflare, and web traffic comes back through that, so `PUBLIC_TCP_PORTS` and `PUBLIC_UDP_PORTS` must be empty. Point the tunnel's public hostnames at the loopback ports your containers publish. With `SSH_ACCESS=tailscale` too, nothing listens on the public address: the firewall drops the Tailscale direct port as well, so Tailscale uses its relays, slower but closed. The token is kept in `/etc/cloudflared/token.env`, readable by root alone, and the service runs as its own unprivileged user. Multipath TCP is switched off on every server, `net.mptcp.enabled = 0`, on the host only, a container namespace has its own setting. Any server with Tailscale and no public port, tunnel or not, also loses the Tailscale direct port on its next run and uses relays.
+
+Setting it up:
+
+1. In the Zero Trust dashboard, Networks, Tunnels, create a Cloudflared tunnel and copy the token from the install command it shows.
+2. `./setup.sh` and answer `tunnel`, or put the token in a file with `chmod 600` and set `CLOUDFLARE_TUNNEL_TOKEN_FILE`. `provision.sh` refuses a file others can read, or one that is not shaped like a token, before it touches the server.
+3. Add a public hostname to the tunnel for each site, pointing at the loopback port its container publishes, such as `http://127.0.0.1:8080`. Containers must publish on `127.0.0.1`, not on every address, `sudo warden-audit` fails while anything listens on all addresses behind a tunnel.
+4. `./provision.sh`. The token is deleted from warden's directory on the server once placed. Keep the file on your machine, every `provision.sh` run checks and uploads it again, and the server only changes when the token did.
+
+Rotate a token in the dashboard, put the new one in the file, and run `provision.sh` again, the service restarts only when it changed. Remove the setting to turn the tunnel off, the next run stops and removes the service, the token, the `cloudflared` package and its `apt` source, and delete the tunnel in the dashboard too. Only a tunnel warden made is removed, one you set up yourself with `cloudflared service install` is left alone. Turning the tunnel on replaces that service with warden's. Anyone who takes over the server can read the token, so it grants a tunnel and nothing more, revoke it in the dashboard if that happens.
+
+The `apt` repository key is pinned to fingerprint `CC94B39C77AE7342A68B89628A682D308D4E5E73`, checked on every run. Cloudflare publishes no fingerprint, so the pin rests on the key from `pkg.cloudflare.com` over HTTPS, and on its key ID `8A682D308D4E5E73` being the one named in [cloudflare/cloudflared issue 1779](https://github.com/cloudflare/cloudflared/issues/1779). Check it yourself with `curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg | gpg --show-keys`, last checked 2026-11-03. If Cloudflare rotates the key the run stops with a message instead of trusting the new one.
+
+Not covered: a tunnel carries web traffic only. Cloudflare sees it all, and an outage on their side is an outage for the site.

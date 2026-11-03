@@ -348,3 +348,67 @@ setup() {
     [[ "$output" == *"alerts"*"on"* ]]
     [[ "$output" == *"Cloudflare only"*"on"* ]]
 }
+
+@test "a tunnel with a public port is refused" {
+    CLOUDFLARE_TUNNEL_TOKEN_FILE=/root/warden/secrets/cloudflare-tunnel-token
+    PUBLIC_TCP_PORTS="80 443"
+    PUBLIC_UDP_PORTS=""
+    run validate_configuration
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"PUBLIC_TCP_PORTS and PUBLIC_UDP_PORTS empty"* ]]
+}
+
+@test "a tunnel with Cloudflare only is refused" {
+    CLOUDFLARE_TUNNEL_TOKEN_FILE=/root/warden/secrets/cloudflare-tunnel-token
+    PUBLIC_TCP_PORTS=""
+    PUBLIC_UDP_PORTS=""
+    CLOUDFLARE_ONLY=yes
+    run validate_configuration
+    [ "$status" -ne 0 ]
+    [[ "$output" == *"exclude each other"* ]]
+}
+
+@test "a tunnel with no public ports passes" {
+    CLOUDFLARE_TUNNEL_TOKEN_FILE=/root/warden/secrets/cloudflare-tunnel-token
+    PUBLIC_TCP_PORTS=""
+    PUBLIC_UDP_PORTS=""
+    run validate_configuration
+    [ "$status" -eq 0 ]
+}
+
+@test "a tunnel token is one run of base64 characters" {
+    run is_tunnel_token "eyJhIjoiMDEyMzQ1Njc4OSIsInQiOiJhYmMifQ=="
+    [ "$status" -eq 0 ]
+    run is_tunnel_token "short"
+    [ "$status" -ne 0 ]
+    run is_tunnel_token "has a space in it, and is long enough to pass"
+    [ "$status" -ne 0 ]
+    run is_tunnel_token 'eyJhIjoiMDEyMzQ1Njc4OSIs$(touch x)'
+    [ "$status" -ne 0 ]
+}
+
+@test "a private file is one no group or other bit reaches" {
+    file=$(mktemp)
+    chmod 600 "$file"
+    run is_private_file "$file"
+    [ "$status" -eq 0 ]
+    for mode in 644 640 604 660 602 601 777; do
+        chmod "$mode" "$file"
+        run is_private_file "$file"
+        [ "$status" -ne 0 ]
+    done
+    rm -f "$file"
+    run is_private_file "$file"
+    [ "$status" -ne 0 ]
+}
+
+@test "a tailnet tag is one of the roles the policy defines" {
+    run is_tailscale_tag tag:web
+    [ "$status" -eq 0 ]
+    run is_tailscale_tag tag:admin
+    [ "$status" -ne 0 ]
+    run is_tailscale_tag web
+    [ "$status" -ne 0 ]
+    run is_tailscale_tag "tag:web tag:internal"
+    [ "$status" -ne 0 ]
+}

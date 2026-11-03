@@ -44,6 +44,10 @@ for module in "$WARDEN_DIRECTORY"/modules/*.sh; do
     (source "$module")
 done
 
+# What `provision.sh` uploaded under `secrets/` is in its place by now, no
+# module owns the cleanup, so none can forget it or delete another's.
+rm -rf "$WARDEN_DIRECTORY/secrets"
+
 describe_features >&2
 if uses_tailscale_ssh_login; then
     log_success "Done. Log in as $ADMIN_USER over Tailscale SSH, port 22 of the tailnet address, from a new terminal before closing this one."
