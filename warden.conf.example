@@ -103,6 +103,17 @@ DOCKER_ADDRESS_POOL=172.30.0.0/16
 # all web traffic either way, this only closes the way around it.
 CLOUDFLARE_ONLY=no
 
+# Path to a file on this machine holding a Cloudflare Tunnel token, made in
+# the Zero Trust dashboard under Networks, Tunnels. The server dials out to
+# Cloudflare and web traffic comes back through that, so it needs no public
+# port. Set PUBLIC_TCP_PORTS and PUBLIC_UDP_PORTS to empty with it, and point
+# the tunnel's public hostnames at the loopback ports your containers publish,
+# such as http://127.0.0.1:8080. With SSH_ACCESS=tailscale nothing listens
+# publicly at all, and the Tailscale direct port is closed too, so Tailscale
+# uses its relays. provision.sh uploads the file, it is never typed on the
+# server. Empty leaves the tunnel out.
+CLOUDFLARE_TUNNEL_TOKEN_FILE=""
+
 # Alerts to your phone through ntfy. Off by default, it needs the ntfy app
 # and sends text through the ntfy server you pick.
 #   no:   nothing is sent.
