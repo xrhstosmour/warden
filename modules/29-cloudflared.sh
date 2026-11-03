@@ -35,8 +35,7 @@ EOF
 fi
 install_packages cloudflared
 
-# The uploaded file is the only copy of the token outside Cloudflare. Once it
-# is in the service's own file it is removed, and later runs keep that one.
+# The uploaded file is removed by `install.sh` once every module has run.
 token_file="$CLOUDFLARED_ENVIRONMENT_FILE"
 install -d -m 0700 -o root -g root /etc/cloudflared
 if [[ -f "$CLOUDFLARE_TUNNEL_TOKEN_FILE" ]]; then
@@ -46,9 +45,6 @@ if [[ -f "$CLOUDFLARE_TUNNEL_TOKEN_FILE" ]]; then
         fail "$CLOUDFLARE_TUNNEL_TOKEN_FILE does not hold a tunnel token, copy it from the tunnel's page in the Zero Trust dashboard."
     printf 'TUNNEL_TOKEN=%s\n' "$token" | place_content "$token_file" 0600 && token_changed=true
     unset token
-    if [[ "$CLOUDFLARE_TUNNEL_TOKEN_FILE" == "$WARDEN_DIRECTORY/secrets/"* ]]; then
-        rm -f "$CLOUDFLARE_TUNNEL_TOKEN_FILE"
-    fi
 else
     [[ -f "$token_file" ]] || fail "$CLOUDFLARE_TUNNEL_TOKEN_FILE is missing, it should hold the tunnel token named in warden.conf."
 fi

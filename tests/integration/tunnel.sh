@@ -31,6 +31,7 @@ unit=/etc/systemd/system/cloudflared.service
 # tunnel and a secret, none of it known to Cloudflare. The same number makes
 # the same token, so a rerun is the same upload.
 make_token() {
+    mkdir -p "$directory/secrets"
     printf '{"a":"%s","t":"%s","s":"%s"}' "$(printf '%032x' "$1")" "00000000-0000-0000-0000-00000000000$1" "$(printf '%032d' "$1" | base64 -w0)" |
         base64 -w0 >"$directory/secrets/cloudflare-tunnel-token"
 }
