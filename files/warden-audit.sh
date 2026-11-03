@@ -42,6 +42,8 @@ check "nobody is in the docker group" sh -c '! getent group docker | cut -d: -f4
 check "kernel pointers are hidden" test "$(sysctl_value kernel.kptr_restrict)" = 2
 check "ptrace is limited to parents" test "$(sysctl_value kernel.yama.ptrace_scope)" -ge 2
 check "SYN cookies are on" test "$(sysctl_value net.ipv4.tcp_syncookies)" = 1
+# A kernel without MPTCP has no key, which is as good as off.
+check "Multipath TCP is off" test "$(sysctl_value net.mptcp.enabled)" != 1
 check "user namespaces stay on for rootless Docker" test "$(sysctl_value user.max_user_namespaces)" -gt 0
 check "core dumps are off" sh -c 'grep -q "Storage=none" /etc/systemd/coredump.conf.d/warden.conf'
 check "sudo still parses" visudo -cq
