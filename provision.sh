@@ -68,6 +68,17 @@ if [[ -z "$ADMIN_PUBLIC_KEY" || -z "$DEPLOY_PUBLIC_KEY" ]]; then
 fi
 validate_configuration || fail "Fix $configuration and run again."
 
+# Checked here, before anything leaves this machine or the server changes. A
+# token readable by others is treated as leaked.
+if uses_cloudflare_tunnel; then
+    token_source="${CLOUDFLARE_TUNNEL_TOKEN_FILE/#\~/$HOME}"
+    [[ -f "$token_source" ]] || fail "$token_source is missing, CLOUDFLARE_TUNNEL_TOKEN_FILE names it in warden.conf."
+    is_private_file "$token_source" ||
+        fail "$token_source is readable by others, run chmod 600 on it, and rotate the token if anyone else could have read it."
+    is_tunnel_token "$(tr -d '[:space:]' <"$token_source")" ||
+        fail "$token_source does not hold a tunnel token, copy it from the tunnel's page in the Zero Trust dashboard."
+fi
+
 if [[ "$SSH_ACCESS" == "tailscale" ]]; then
     if command -v tailscale >/dev/null; then
         tailscale status >/dev/null 2>&1 ||
@@ -90,8 +101,9 @@ ssh "${ssh_options[@]}" "$target" "rm -rf $upload && umask 077 && mkdir $upload"
 COPYFILE_DISABLE=1 tar -C "$WARDEN_DIRECTORY" -czf - install.sh library modules files |
     ssh "${ssh_options[@]}" "$target" "umask 077 && tar -xzf - -C $upload"
 
-# The backup password and keys are made on this machine. They travel with the
-# upload, readable by root alone, and the configuration below points at them.
+# The backup password and keys and the tunnel token are made on this machine.
+# They travel with the upload, readable by root alone, and the configuration
+# below points at them.
 secret_overrides=""
 copy_secret() {
     local variable="$1"
@@ -103,6 +115,9 @@ copy_secret() {
     ssh "${ssh_options[@]}" "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$name" <"$source"
     secret_overrides+="$variable=\"$remote_directory/secrets/$name\""$'\n'
 }
+if uses_cloudflare_tunnel; then
+    copy_secret CLOUDFLARE_TUNNEL_TOKEN_FILE cloudflare-tunnel-token
+fi
 if uses_backups; then
     copy_secret BACKUP_PASSWORD_FILE password
     copy_secret BACKUP_SSH_KEY_FILE key
