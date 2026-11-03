@@ -92,8 +92,8 @@ COPYFILE_DISABLE=1 tar -C "$WARDEN_DIRECTORY" -czf - install.sh library modules 
 
 # The backup password and keys are made on this machine. They travel with the
 # upload, readable by root alone, and the configuration below points at them.
-backup_overrides=""
-copy_backup_secret() {
+secret_overrides=""
+copy_secret() {
     local variable="$1"
     local name="$2"
     local source="${!variable}"
@@ -101,19 +101,19 @@ copy_backup_secret() {
     source="${source/#\~/$HOME}"
     [[ -f "$source" ]] || fail "$source is missing, $variable names it in warden.conf."
     ssh "${ssh_options[@]}" "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$name" <"$source"
-    backup_overrides+="$variable=\"$remote_directory/secrets/$name\""$'\n'
+    secret_overrides+="$variable=\"$remote_directory/secrets/$name\""$'\n'
 }
 if uses_backups; then
-    copy_backup_secret BACKUP_PASSWORD_FILE password
-    copy_backup_secret BACKUP_SSH_KEY_FILE key
-    copy_backup_secret BACKUP_RCLONE_CONFIG_FILE rclone.conf
+    copy_secret BACKUP_PASSWORD_FILE password
+    copy_secret BACKUP_SSH_KEY_FILE key
+    copy_secret BACKUP_RCLONE_CONFIG_FILE rclone.conf
 fi
 
 # The keys made above follow the file's own lines, and so win over them.
 {
     cat "$configuration"
     printf '\nADMIN_PUBLIC_KEY=%q\nDEPLOY_PUBLIC_KEY=%q\n' "$ADMIN_PUBLIC_KEY" "$DEPLOY_PUBLIC_KEY"
-    printf '%s' "$backup_overrides"
+    printf '%s' "$secret_overrides"
 } | ssh "${ssh_options[@]}" "$target" "umask 077 && cat > $upload/warden.conf"
 
 log_info "Running warden on $host."
