@@ -102,7 +102,9 @@ EOF
         [[ -n "$tcp_ports" ]] && echo "        tcp dport { $tcp_ports } accept"
         [[ -n "$udp_ports" ]] && echo "        udp dport { $udp_ports } accept"
     fi
-    if uses_tailscale; then
+    # With no public port at all, this would be the only one. Tailscale falls
+    # back to its relays without it, slower, but nothing is left listening.
+    if uses_tailscale && [[ -n "$tcp_ports$udp_ports" ]]; then
         echo ""
         echo "        # Tailscale's own port, for direct connections rather than relays."
         echo "        udp dport 41641 accept"
