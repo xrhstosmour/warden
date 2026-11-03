@@ -119,6 +119,15 @@ is_username() {
     [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,30}$ ]] && [[ "$1" != "root" ]]
 }
 
+# The roles the tailnet policy defines, the one list `setup.sh` offers and
+# `validate_configuration` accepts.
+# shellcheck disable=SC2034 # Read by `setup.sh`.
+TAILSCALE_ROLES="server web shared internal"
+
+is_tailscale_tag() {
+    [[ "$1" == tag:* && " $TAILSCALE_ROLES " == *" ${1#tag:} "* ]]
+}
+
 # A Cloudflare Tunnel token as the dashboard shows it, one run of base64
 # characters. Only its shape is checked, nothing here can tell whether
 # Cloudflare knows it.
@@ -196,7 +205,7 @@ validate_configuration() {
     fi
     # No default, an untagged machine of the owner counts as a personal device
     # in the tailnet policy and reaches everything.
-    if uses_tailscale && [[ ! "$TAILSCALE_TAG" =~ ^tag:(server|web|shared|internal)$ ]]; then
+    if uses_tailscale && ! is_tailscale_tag "$TAILSCALE_TAG"; then
         problems+=("TAILSCALE_TAG must be tag:server, tag:web, tag:shared or tag:internal, a server without a tag gets the access of a personal device.")
     fi
     # The policy grants the tailnet port 22 only, plain sshd listens elsewhere.

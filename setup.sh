@@ -69,7 +69,7 @@ if [[ "$ssh_access" == "tailscale" ]]; then
     add TAILSCALE_SSH yes
     echo
     echo "Tags: server (SSH only), web (SSH and web from your devices), shared (reaches other shared machines), internal (reaches nothing)."
-    choose "Which tailnet tag does this server get?" server "server|web|shared|internal"
+    choose "Which tailnet tag does this server get?" server "${TAILSCALE_ROLES// /|}"
     add TAILSCALE_TAG "tag:$answer"
     echo
     echo "A one-off auth key from https://login.tailscale.com/admin/settings/keys lets the server join without a browser. Empty means approving a login URL instead."

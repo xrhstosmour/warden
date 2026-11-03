@@ -401,3 +401,14 @@ setup() {
     run is_private_file "$file"
     [ "$status" -ne 0 ]
 }
+
+@test "a tailnet tag is one of the roles the policy defines" {
+    run is_tailscale_tag tag:web
+    [ "$status" -eq 0 ]
+    run is_tailscale_tag tag:admin
+    [ "$status" -ne 0 ]
+    run is_tailscale_tag web
+    [ "$status" -ne 0 ]
+    run is_tailscale_tag "tag:web tag:internal"
+    [ "$status" -ne 0 ]
+}
