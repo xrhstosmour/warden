@@ -172,3 +172,14 @@ setup() {
     [[ "$output" != *"tcp dport { "* ]]
     [[ "$output" != *"udp dport { "* ]]
 }
+
+@test "the tunnel service runs unprivileged and takes the token from a file" {
+    run render_cloudflared_unit
+    [[ "$output" == *"User=cloudflared"* ]]
+    [[ "$output" == *"EnvironmentFile=/etc/cloudflared/token.env"* ]]
+    [[ "$output" == *"NoNewPrivileges=yes"* ]]
+    [[ "$output" == *"AF_NETLINK"* ]]
+    [[ "$output" == *"CapabilityBoundingSet="$'\n'* ]]
+    # The token must never sit on the command line, every process can read it.
+    [[ "$output" != *"--token"* ]]
+}

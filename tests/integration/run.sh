@@ -54,7 +54,7 @@ BACKUP_PASSWORD_FILE=/root/warden/secrets/password
 BACKUP_RCLONE_CONFIG_FILE=/root/warden/secrets/rclone.conf
 EOF
 
-COPYFILE_DISABLE=1 tar -C "$directory" -czf - install.sh library modules files tests/integration/check.sh tests/integration/curl.sh |
+COPYFILE_DISABLE=1 tar -C "$directory" -czf - install.sh library modules files tests/integration/check.sh tests/integration/curl.sh tests/integration/tunnel.sh |
     docker exec -i "$container" sh -c 'mkdir -p /root/warden && tar -xzf - -C /root/warden'
 docker cp "$temporary/warden.conf" "$container:/root/warden/warden.conf"
 rm -rf "$temporary"
@@ -92,3 +92,6 @@ if grep -E "Updated |Installing |Created |Masked |Removed |Added " <<<"$second";
 fi
 
 docker exec "$container" bash /root/warden/tests/integration/check.sh
+
+# The Cloudflare Tunnel on, then off, with the real `cloudflared`.
+docker exec "$container" bash /root/warden/tests/integration/tunnel.sh
