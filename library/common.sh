@@ -33,7 +33,8 @@ place() {
         return 1
     fi
 
-    install -D -m "$mode" -o root -g root "$source" "$target"
+    # A failure here must not read as a change nor as an unchanged file.
+    install -D -m "$mode" -o root -g root "$source" "$target" || fail "Could not install $target."
     log_info "Updated $target."
     return 0
 }

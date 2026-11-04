@@ -95,6 +95,16 @@ STUB
     [ ! -e "$TARGET" ]
 }
 
+@test "place stops when the file cannot be installed" {
+    printf '#!/bin/bash\nexit 1\n' >"$STUB/install"
+    chmod +x "$STUB/install"
+    echo content >"$BATS_TEST_TMPDIR/source"
+    run bash -c 'source "$1"; PATH="$2:$PATH"; place "$3" "$4/missing/target"' _ \
+        "$BATS_TEST_DIRNAME/../library/common.sh" "$STUB" "$BATS_TEST_TMPDIR/source" "$BATS_TEST_TMPDIR"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"Could not install"* ]]
+}
+
 @test "a command that finishes in time keeps its own status" {
     run within 5 true
     [ "$status" -eq 0 ]
