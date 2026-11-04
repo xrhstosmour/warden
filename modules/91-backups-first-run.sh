@@ -31,8 +31,15 @@ first_backup() {
         log_info "Running the first backup."
         timeout 5m /usr/local/sbin/warden-backup backup || return 1
     fi
-    # Every run, so a restore test that failed once is tried again.
-    timeout 2m /usr/local/sbin/warden-backup verify || return 1
+    # Weekly, after the first backup always. The stamp is only written once a
+    # restore worked, so one that failed is tried again on the next run, and a
+    # run that changes nothing does not read from the target every time.
+    local stamp="${WARDEN_STATE_DIRECTORY:-/var/lib/warden}/backup-verified"
+    if [[ "$first" == true ]] || [[ -z "$(find "$stamp" -mtime -7 -print -quit 2>/dev/null)" ]]; then
+        timeout 2m /usr/local/sbin/warden-backup verify || return 1
+        mkdir -p "$(dirname "$stamp")"
+        touch "$stamp"
+    fi
     [[ "$first" == false ]] || log_warning "Backups work. Keep a copy of the restic password off this server, without it the backups cannot be read."
 }
 
