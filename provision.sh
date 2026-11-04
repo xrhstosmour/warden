@@ -109,13 +109,13 @@ COPYFILE_DISABLE=1 tar -C "$WARDEN_DIRECTORY" -czf - install.sh library modules 
 secret_overrides=""
 copy_secret() {
     local variable="$1"
-    local name="$2"
-    local source="${!variable}"
-    [[ -n "$source" ]] || return 0
-    source="${source/#\~/$HOME}"
-    [[ -f "$source" ]] || fail "$source is missing, $variable names it in warden.conf."
-    ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$name" <"$source"
-    secret_overrides+="$variable=\"$remote_directory/secrets/$name\""$'\n'
+    local secret_name="$2"
+    local secret_path="${!variable}"
+    [[ -n "$secret_path" ]] || return 0
+    secret_path="${secret_path/#\~/$HOME}"
+    [[ -f "$secret_path" ]] || fail "$secret_path is missing, $variable names it in warden.conf."
+    ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$secret_name" <"$secret_path"
+    secret_overrides+="$variable=\"$remote_directory/secrets/$secret_name\""$'\n'
 }
 if uses_cloudflare_tunnel; then
     copy_secret CLOUDFLARE_TUNNEL_TOKEN_FILE cloudflare-tunnel-token
