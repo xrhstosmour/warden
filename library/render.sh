@@ -258,3 +258,38 @@ CapabilityBoundingSet=
 WantedBy=multi-user.target
 EOS
 }
+
+# The fallback that reopens public SSH on the new port when a tailnet login is
+# never proven. Unit files and an absolute deadline with `Persistent=true`,
+# not a transient timer, so an automatic reboot in the window cannot remove
+# it, a deadline missed while the machine was down fires at the next boot.
+render_ssh_rollback_service() {
+    cat <<EOS
+# Managed by warden, local changes are overwritten on the next run.
+[Unit]
+Description=Reopen public SSH after a move no tailnet login proved
+After=nftables.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft insert rule inet warden input tcp dport $SSH_PORT accept
+EOS
+}
+
+# render_ssh_rollback_timer <deadline>, as "YYYY-MM-DD HH:MM:SS UTC".
+render_ssh_rollback_timer() {
+    cat <<EOS
+# Managed by warden, local changes are overwritten on the next run.
+[Unit]
+Description=Reopen public SSH unless a tailnet login is proven
+
+[Timer]
+OnCalendar=$1
+Persistent=true
+# Gone once it has fired, so the stop script can tell it did.
+RemainAfterElapse=no
+
+[Install]
+WantedBy=timers.target
+EOS
+}

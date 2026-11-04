@@ -183,3 +183,16 @@ setup() {
     # The token must never sit on the command line, every process can read it.
     [[ "$output" != *"--token"* ]]
 }
+
+@test "the rollback timer fires at an absolute time and survives a reboot" {
+    run render_ssh_rollback_timer "2026-11-05 12:40:00 UTC"
+    [[ "$output" == *"OnCalendar=2026-11-05 12:40:00 UTC"* ]]
+    [[ "$output" == *"Persistent=true"* ]]
+    [[ "$output" == *"RemainAfterElapse=no"* ]]
+    [[ "$output" == *"WantedBy=timers.target"* ]]
+}
+
+@test "the rollback service opens the SSH port in the warden chain" {
+    run render_ssh_rollback_service
+    [[ "$output" == *"ExecStart=/usr/sbin/nft insert rule inet warden input tcp dport 2222 accept"* ]]
+}

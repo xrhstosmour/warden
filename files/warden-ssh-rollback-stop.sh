@@ -1,8 +1,9 @@
 #!/bin/bash
 # Managed by warden, local changes are overwritten on the next run.
 # Run by `provision.sh` through sudo once a tailnet login works, with the SSH
-# port. Stops the timer that would reopen public SSH. When the timer already
-# fired, the public rule it inserted is only in the running firewall and is
+# port. Stops and disables the timer that would reopen public SSH. When the
+# timer already fired, the public rule it inserted is only in the running
+# firewall and is
 # deleted by its handle. Loading the installed file again would also reset
 # the Cloudflare sets to the ranges cached at install time. Exits 3 when the
 # rule is still there after that, and 4 when the firewall cannot be read or
@@ -33,4 +34,7 @@ else
         grep -q "$rule" <<<"$rules" && exit 3
     fi
 fi
+# Enabled, so a reboot before this point still fires it. Done with, it must
+# not come back at the next boot.
+systemctl disable -q warden-ssh-rollback.timer
 exit 0

@@ -57,10 +57,18 @@ if place "$candidate" /etc/nftables.conf 0755; then
         # SSH answers on the tailnet only from here on. Should nobody be
         # able to log in over it, public SSH on the new port comes back by
         # itself until the next run, rather than the server being lost.
-        systemctl stop warden-ssh-rollback.timer 2>/dev/null || true
-        systemd-run --quiet --unit=warden-ssh-rollback --on-active="$(rollback_minutes)min" \
-            /usr/sbin/nft insert rule inet warden input tcp dport "$SSH_PORT" accept
-        log_warning "SSH answers on the tailnet only. Public SSH reopens $(rollback_minutes) minutes after this unless a tailnet login runs: sudo systemctl stop warden-ssh-rollback.timer"
+        deadline=$(date -u -d "+$(rollback_minutes) minutes" '+%Y-%m-%d %H:%M:%S UTC')
+        # Stopped first, a timer left by an older run is transient, and a unit
+        # file of the same name cannot replace it while it is pending.
+        systemctl stop warden-ssh-rollback.timer warden-ssh-rollback.service 2>/dev/null || true
+        # Not piped, `place_content` must run in this shell for a failed write
+        # to stop the run.
+        place_content /etc/systemd/system/warden-ssh-rollback.service 0644 < <(render_ssh_rollback_service) || true
+        place_content /etc/systemd/system/warden-ssh-rollback.timer 0644 < <(render_ssh_rollback_timer "$deadline") || true
+        systemctl daemon-reload
+        systemctl enable -q warden-ssh-rollback.timer
+        systemctl restart warden-ssh-rollback.timer
+        log_warning "SSH answers on the tailnet only. Public SSH reopens $(rollback_minutes) minutes after this unless a tailnet login runs: sudo systemctl disable --now warden-ssh-rollback.timer"
     fi
 fi
 rm -f "$candidate"

@@ -10,6 +10,7 @@ setup() {
 case "$1" in
 is-active) [[ "${TIMER_ACTIVE:-no}" == "yes" ]] ;;
 stop) echo "$*" >>"$BATS_TEST_TMPDIR/stopped" ;;
+disable) echo "$*" >>"$BATS_TEST_TMPDIR/disabled" ;;
 esac
 STUB
     # An nft that prints the input chain as it is in FIREWALL_RULES.
@@ -35,6 +36,7 @@ STUB
     TIMER_ACTIVE=yes FIREWALL_RULES='        iifname "tailscale0" tcp dport 2222 accept' run "$script" 2222
     [ "$status" -eq 0 ]
     [ "$(cat "$BATS_TEST_TMPDIR/stopped")" = "stop warden-ssh-rollback.timer" ]
+    [ "$(cat "$BATS_TEST_TMPDIR/disabled")" = "disable -q warden-ssh-rollback.timer" ]
 }
 
 @test "a timer that already fired has its public rule deleted by handle" {
