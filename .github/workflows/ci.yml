@@ -15,9 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Lint
-        run: shellcheck -x -S style install.sh provision.sh keys.sh library/*.sh modules/*.sh files/*.sh tests/integration/*.sh
+        run: shellcheck -x -S style install.sh provision.sh keys.sh setup.sh library/*.sh modules/*.sh files/*.sh tests/integration/*.sh
       - name: Syntax
-        run: for file in install.sh provision.sh keys.sh library/*.sh modules/*.sh; do bash -n "$file"; done
+        run: for file in install.sh provision.sh keys.sh setup.sh library/*.sh modules/*.sh files/*.sh tests/integration/*.sh; do bash -n "$file"; done
 
   unit:
     runs-on: ubuntu-latest
@@ -27,6 +27,19 @@ jobs:
         run: sudo apt-get update -q && sudo apt-get install -y -q bats
       - name: Test
         run: bats tests/
+
+  # macOS ships bash 3.2, which the scripts run on the operator's machine
+  # must work under.
+  operator:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Syntax under bash 3
+        run: for file in provision.sh keys.sh setup.sh; do /bin/bash -n "$file"; done
+      - name: Install bats
+        run: brew install bats-core
+      - name: Test
+        run: bats tests/provision.bats tests/keys.bats tests/setup.bats
 
   integration:
     runs-on: ubuntu-latest
