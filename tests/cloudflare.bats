@@ -85,3 +85,14 @@ teardown() {
     [ "$status" -eq 1 ]
     [ "$(wc -l <"$work/state/cloudflare/ipv4")" -eq 5 ]
 }
+
+@test "a list far shorter than the cached one is refused" {
+    seq 1 20 | sed 's|.*|198.51.100.&/32|' >"$work/served/ips-v4"
+    run "$script"
+    [ "$status" -eq 0 ]
+    head -5 "$work/served/ips-v4" >"$work/served/ips-v4.short"
+    mv "$work/served/ips-v4.short" "$work/served/ips-v4"
+    run "$script"
+    [ "$status" -eq 1 ]
+    [ "$(wc -l <"$work/state/cloudflare/ipv4")" -eq 20 ]
+}
