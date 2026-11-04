@@ -22,7 +22,7 @@ NTFY_SERVER=""
 source "$configuration_directory/alerts.conf" 2>/dev/null
 read -r topic <"$state_directory/ntfy-topic" 2>/dev/null
 
-if [[ ! "$NTFY_SERVER" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || [[ ! "$topic" =~ ^[A-Za-z0-9_-]{16,64}$ ]]; then
+if [[ ! "$NTFY_SERVER" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || [[ ! "$topic" =~ ^[A-Za-z0-9_-]{16,64}$ ]]; then
     logger -t warden-alert "No usable ntfy server or topic, nothing sent."
     exit 0
 fi
