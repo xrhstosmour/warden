@@ -81,6 +81,20 @@ EOF
     [ "$(sort -u "$BATS_TEST_TMPDIR/runuser-users")" = "deploy" ]
 }
 
+@test "a write that fails as the owner is reported, not taken for done" {
+    cat >"$STUB/runuser" <<'STUB'
+#!/bin/bash
+shift 3
+[[ "$1" == "install" ]] && exit 1
+exec "$@"
+STUB
+    chmod +x "$STUB/runuser"
+    run bash -c 'source "$1"; PATH="$2:$PATH"; echo key | place_as_owner deploy "$3" 0600' _ \
+        "$BATS_TEST_DIRNAME/../library/common.sh" "$STUB" "$TARGET"
+    [ "$status" -eq 2 ]
+    [ ! -e "$TARGET" ]
+}
+
 @test "a command that finishes in time keeps its own status" {
     run within 5 true
     [ "$status" -eq 0 ]

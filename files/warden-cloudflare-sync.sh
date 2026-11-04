@@ -15,15 +15,25 @@ install -d -m 0755 "$cache"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# fetch <family> <pattern> <shortest prefix>, keeps only a list of at least 5
-# valid ranges. Cloudflare publishes small blocks, a short prefix such as /0
-# would open the public ports to everyone, so it is refused.
+# fetch <family> <pattern> <shortest prefix>, accepts a list only when it has
+# at least 5 valid ranges, and no fewer than half of the ones cached. Cloudflare
+# publishes small blocks, a short prefix such as /0 would open the public ports
+# to everyone, so it is refused. A short but well formed answer would drop
+# most of the edge from the allowlist until the next sync.
 fetch() {
     local family="$1"
     local pattern="$2"
     local shortest="$3"
     curl --silent --show-error --fail --proto '=https' --tlsv1.2 --max-time 20 "$base/ips-$family" >"$work/$family" || return 1
-    [[ "$(grep -c . "$work/$family")" -ge 5 ]] || return 1
+    local count cached=0
+    count=$(grep -c . "$work/$family")
+    [[ "$count" -ge 5 ]] || return 1
+    # The cache file is named ipv4 or ipv6.
+    [[ -s "$cache/ip$family" ]] && cached=$(grep -c . "$cache/ip$family")
+    if [[ "$((count * 2))" -lt "$cached" ]]; then
+        echo "The $family list has $count ranges against $cached cached. If Cloudflare really merged its ranges, remove $cache/ip$family and run again." >&2
+        return 1
+    fi
     ! grep -qvE "$pattern" "$work/$family" || return 1
     awk -F/ -v shortest="$shortest" '$2 + 0 < shortest { bad = 1 } END { exit bad }' "$work/$family"
 }

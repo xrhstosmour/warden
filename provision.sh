@@ -30,6 +30,8 @@ target="${1:-}"
     exit 1
 }
 shift
+# Expanded as `${ssh_options[@]+...}` below, bash 3 on macOS fails on an empty
+# array under `set -u`.
 ssh_options=("$@")
 
 configuration="${WARDEN_CONFIGURATION:-$WARDEN_DIRECTORY/warden.conf}"
@@ -96,10 +98,10 @@ upload=".warden-upload"
 remote_directory="/root/warden"
 
 log_info "Copying warden to $host."
-ssh "${ssh_options[@]}" "$target" "rm -rf $upload && umask 077 && mkdir $upload"
+ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "rm -rf $upload && umask 077 && mkdir $upload"
 # No macOS resource fork files in the archive.
 COPYFILE_DISABLE=1 tar -C "$WARDEN_DIRECTORY" -czf - install.sh library modules files |
-    ssh "${ssh_options[@]}" "$target" "umask 077 && tar -xzf - -C $upload"
+    ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "umask 077 && tar -xzf - -C $upload"
 
 # The backup password and keys and the tunnel token are made on this machine.
 # They travel with the upload, readable by root alone, and the configuration
@@ -107,13 +109,13 @@ COPYFILE_DISABLE=1 tar -C "$WARDEN_DIRECTORY" -czf - install.sh library modules 
 secret_overrides=""
 copy_secret() {
     local variable="$1"
-    local name="$2"
-    local source="${!variable}"
-    [[ -n "$source" ]] || return 0
-    source="${source/#\~/$HOME}"
-    [[ -f "$source" ]] || fail "$source is missing, $variable names it in warden.conf."
-    ssh "${ssh_options[@]}" "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$name" <"$source"
-    secret_overrides+="$variable=\"$remote_directory/secrets/$name\""$'\n'
+    local secret_name="$2"
+    local secret_path="${!variable}"
+    [[ -n "$secret_path" ]] || return 0
+    secret_path="${secret_path/#\~/$HOME}"
+    [[ -f "$secret_path" ]] || fail "$secret_path is missing, $variable names it in warden.conf."
+    ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$secret_name" <"$secret_path"
+    secret_overrides+="$variable=\"$remote_directory/secrets/$secret_name\""$'\n'
 }
 if uses_cloudflare_tunnel; then
     copy_secret CLOUDFLARE_TUNNEL_TOKEN_FILE cloudflare-tunnel-token
@@ -129,12 +131,12 @@ fi
     cat "$configuration"
     printf '\nADMIN_PUBLIC_KEY=%q\nDEPLOY_PUBLIC_KEY=%q\n' "$ADMIN_PUBLIC_KEY" "$DEPLOY_PUBLIC_KEY"
     printf '%s' "$secret_overrides"
-} | ssh "${ssh_options[@]}" "$target" "umask 077 && cat > $upload/warden.conf"
+} | ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "umask 077 && cat > $upload/warden.conf"
 
 log_info "Running warden on $host."
 output=$(mktemp)
 trap 'rm -f "$output"' EXIT
-ssh -t "${ssh_options[@]}" "$target" \
+ssh -t ${ssh_options[@]+"${ssh_options[@]}"} "$target" \
     "upload=\$HOME/$upload; $sudo_prefix sh -c \"rm -rf $remote_directory && mv \$upload $remote_directory && chown -R root:root $remote_directory && bash $remote_directory/install.sh $remote_directory/warden.conf\"" |
     tee "$output"
 
@@ -204,10 +206,11 @@ fi
 if [[ "$SSH_ACCESS" == "tailscale" ]]; then
     log_info "The tailnet login works, keeping SSH on it. sudo asks for the admin password."
     identity_options "$admin_identity"
-    # A timer that already fired left a public rule for SSH_PORT behind, then
-    # stopping it would claim a tailnet only server that is not one.
+    # A timer that already fired left a public rule for SSH_PORT behind, the
+    # script deletes it and exits 3 only when it is still there, which would
+    # make this a tailnet only server in name alone.
     ssh -t "${options[@]}" "$ADMIN_USER@$login_host" "sudo /usr/local/sbin/warden-ssh-rollback-stop $SSH_PORT" ||
-        fail "Could not stop the rollback timer. If it already fired, public SSH on port $SSH_PORT is open again. Run provision.sh again."
+        fail "Could not stop the rollback timer. If it already fired and the public rule is still there, SSH on port $SSH_PORT is open. Run provision.sh again."
 fi
 
 # A Host entry per account, in a file of its own next to the keys.

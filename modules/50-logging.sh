@@ -1,7 +1,6 @@
 #!/bin/bash
-# Logs that survive a reboot but do not pile up. Access logs hold client
-# addresses, which are personal data, so they are kept a month and no
-# longer. No core dumps, a dump of the application is a dump of whatever
+# Logs that survive a reboot but do not pile up. The journal holds SSH login
+# addresses, which are personal data, so it is kept a month and no longer. No core dumps, a dump of the application is a dump of whatever
 # customer data it held in memory.
 
 if place_content /etc/systemd/journald.conf.d/warden.conf 0644 <<'EOF'; then

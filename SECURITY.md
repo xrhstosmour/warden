@@ -11,3 +11,5 @@ The tunnel token is made on the operator's machine, uploaded over SSH, kept at `
 ## Tailnet policy
 
 With Tailscale, warden relies on the tailnet policy to limit the server. It joins with a role tag from `TAILSCALE_TAG` and refuses to join without one, because an untagged machine of the owner gets the access of a personal device. The tag only limits the server if the policy defines it, so check the policy in the admin console before trusting it. SSH over the tailnet is Tailscale SSH on port 22 as a non-root user, behind the policy's browser approval.
+
+With `SSH_ACCESS=tailscale`, every run of `install.sh` opens SSH to everyone for a moment, then closes it and schedules `warden-ssh-rollback` to reopen it `rollback_minutes` (40) later. `provision.sh` stops that once it has logged in over the tailnet. A run started any other way leaves public SSH reopening on its own unless `sudo systemctl stop warden-ssh-rollback.timer` is run within that time. Last verified in `modules/30-firewall.sh` and `modules/90-ssh.sh`, 2026-11-05.

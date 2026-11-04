@@ -15,7 +15,11 @@ authorize_key() {
     # Made as the user, who owns the directory and could swap it for a link
     # while this runs, so the swap cannot reach anything the user could not.
     runuser -u "$user" -- install -d -m 0700 "$home/.ssh"
-    printf '%s\n' "$key" | place_as_owner "$user" "$home/.ssh/authorized_keys" 0600 || true
+    # 1 means the key was already there. SSH moves last and closes the old
+    # port, so a key that was not written must stop the run before that.
+    local status=0
+    printf '%s\n' "$key" | place_as_owner "$user" "$home/.ssh/authorized_keys" 0600 || status=$?
+    ((status < 2)) || fail "Could not write the authorized keys of $user, SSH was not moved."
 }
 
 if ! id "$ADMIN_USER" >/dev/null 2>&1; then

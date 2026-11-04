@@ -13,7 +13,20 @@ uses_backups || return 0
 first_backup() {
     local first=false
     timeout 1m /usr/local/sbin/warden-backup init || return 1
-    if ! timeout 1m /usr/local/sbin/warden-backup has-snapshots; then
+    local status=0
+    timeout 1m /usr/local/sbin/warden-backup has-snapshots || status=$?
+    # 124 is the timeout. The weekly check can hold the repository's lock for
+    # hours, which says nothing about the repository, so it is not reported as
+    # a failed backup and the daily timer carries on. A timeout with the lock
+    # free is a slow or hung target, and fails as before.
+    if ((status == 124)); then
+        if ! flock -n "${WARDEN_STATE_DIRECTORY:-/var/lib/warden}/backup.lock" true; then
+            log_warning "Another backup task holds the repository, the first backup is left to the daily timer."
+            return 0
+        fi
+        return 1
+    fi
+    if ((status != 0)); then
         first=true
         log_info "Running the first backup."
         timeout 5m /usr/local/sbin/warden-backup backup || return 1

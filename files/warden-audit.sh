@@ -41,8 +41,9 @@ check "SSH is not on port 22" test "$(sshd_value port)" != 22
 check "SSH refuses root" test "$(sshd_value permitrootlogin)" = no
 check "SSH refuses passwords" test "$(sshd_value passwordauthentication)" = no
 # Keyed on the token warden placed, not on the service, a disabled or removed
-# service is the failure this is here to catch. The path is
-# `CLOUDFLARED_ENVIRONMENT_FILE`, this script runs alone on the server.
+# service is the failure this is here to catch. The path repeats
+# `CLOUDFLARED_ENVIRONMENT_FILE`, this script runs alone on the server and
+# cannot read the library.
 if [[ -f /etc/cloudflared/token.env ]]; then
     check "the tunnel service runs" systemctl is-active cloudflared.service
     check "behind the tunnel nothing listens on all addresses" test -z "$(wide_listeners)"
