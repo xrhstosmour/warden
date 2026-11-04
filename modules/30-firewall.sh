@@ -6,6 +6,9 @@
 # The port SSH listens on right now, kept open until `90-ssh.sh` moves it.
 # shellcheck disable=SC2034 # Read by `render_nftables`.
 TRANSITION_SSH_PORT=$(sshd -T 2>/dev/null | awk '$1 == "port" { print $2; exit }')
+# A tailnet login already worked on this port, so nobody needs the public one.
+[[ "$SSH_ACCESS" == "tailscale" ]] || rm -f "$(ssh_proof_file)"
+tailnet_ssh_proven && TRANSITION_SSH_PORT=""
 
 candidate=$(mktemp)
 render_nftables >"$candidate"

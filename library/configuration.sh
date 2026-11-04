@@ -81,6 +81,22 @@ rollback_minutes() {
     echo 40
 }
 
+# Whether `warden-ssh-rollback-stop` has seen a tailnet login work for this
+# SSH port. Once it has, the port SSH listens on is no longer kept open to
+# everyone and the rollback is not armed again by a later run. Another port
+# starts over, the proof was for the old one.
+tailnet_ssh_proven() {
+    [[ "$SSH_ACCESS" == "tailscale" ]] &&
+        [[ "$(cat "$(ssh_proof_file)" 2>/dev/null)" == "$SSH_PORT" ]]
+}
+
+# Where the proof is kept, written by `warden-ssh-rollback-stop`. A run with
+# another `SSH_ACCESS` removes it, a later switch back to the tailnet is a new
+# move that needs the rollback again.
+ssh_proof_file() {
+    echo "${WARDEN_STATE_DIRECTORY:-/var/lib/warden}/ssh-proven"
+}
+
 # Whether new Docker networks take their ranges from a warden pool.
 uses_docker_pool() {
     [[ -n "$DOCKER_ADDRESS_POOL" ]]

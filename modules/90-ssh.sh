@@ -53,7 +53,7 @@ nft -c -f "$candidate" || fail "The generated firewall does not parse, the old S
 if place "$candidate" /etc/nftables.conf 0755; then
     nft -f /etc/nftables.conf
     log_info "Closed the previous SSH port."
-    if [[ "$SSH_ACCESS" == "tailscale" ]]; then
+    if [[ "$SSH_ACCESS" == "tailscale" ]] && ! tailnet_ssh_proven; then
         # SSH answers on the tailnet only from here on. Should nobody be
         # able to log in over it, public SSH on the new port comes back by
         # itself until the next run, rather than the server being lost.
