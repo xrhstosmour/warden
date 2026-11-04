@@ -55,7 +55,9 @@ place_content() {
 # Same as `place_content`, for a file in a directory its owner controls. The
 # owner could swap the directory for a link between root's check and root's
 # write, so the write is made as the owner and reaches nothing more than the
-# owner could. Returns 0 when it changed something, 1 when it was already right.
+# owner could. Returns 0 when it changed something, 1 when it was already
+# right, 2 when the write failed, so a caller never takes a key that was not
+# written for one that is in place.
 place_as_owner() {
     local user="$1"
     local target="$2"
@@ -69,7 +71,11 @@ place_as_owner() {
     local status=1
     if ! { runuser -u "$user" -- cmp -s "$temporary" "$target" &&
         [[ "$(runuser -u "$user" -- stat -c '%a' "$target")" == "${mode#0}" ]]; }; then
-        runuser -u "$user" -- install -m "$mode" "$temporary" "$target"
+        if ! runuser -u "$user" -- install -m "$mode" "$temporary" "$target"; then
+            rm -f "$temporary"
+            log_error "Could not write $target as $user."
+            return 2
+        fi
         log_info "Updated $target."
         status=0
     fi
