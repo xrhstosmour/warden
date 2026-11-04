@@ -206,10 +206,11 @@ fi
 if [[ "$SSH_ACCESS" == "tailscale" ]]; then
     log_info "The tailnet login works, keeping SSH on it. sudo asks for the admin password."
     identity_options "$admin_identity"
-    # A timer that already fired left a public rule for SSH_PORT behind, then
-    # stopping it would claim a tailnet only server that is not one.
+    # A timer that already fired left a public rule for SSH_PORT behind, the
+    # script deletes it and exits 3 only when it is still there, which would
+    # make this a tailnet only server in name alone.
     ssh -t "${options[@]}" "$ADMIN_USER@$login_host" "sudo /usr/local/sbin/warden-ssh-rollback-stop $SSH_PORT" ||
-        fail "Could not stop the rollback timer. If it already fired, public SSH on port $SSH_PORT is open again. Run provision.sh again."
+        fail "Could not stop the rollback timer. If it already fired and the public rule is still there, SSH on port $SSH_PORT is open. Run provision.sh again."
 fi
 
 # A Host entry per account, in a file of its own next to the keys.

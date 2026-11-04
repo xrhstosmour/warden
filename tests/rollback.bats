@@ -16,7 +16,15 @@ STUB
     cat >"$stub/nft" <<'STUB'
 #!/bin/bash
 [[ "${NFT_FAILS:-no}" == "yes" ]] && exit 1
-printf '%s\n' "table inet warden {" "    chain input {" "        policy drop;" "$FIREWALL_RULES" "    }" "}"
+if [[ "$1" == "delete" ]]; then
+    echo "$*" >>"$BATS_TEST_TMPDIR/deleted"
+    [[ "${DELETE_KEEPS_RULE:-no}" == "yes" ]] || touch "$BATS_TEST_TMPDIR/clean"
+    exit 0
+fi
+[[ -e "$BATS_TEST_TMPDIR/clean" ]] && FIREWALL_RULES='        iifname "tailscale0" tcp dport 2222 accept'
+printf '%s\n' "table inet warden {" "    chain input {" "        policy drop;"
+sed 's/$/ # handle 7/' <<<"$FIREWALL_RULES"
+printf '%s\n' "    }" "}"
 STUB
     chmod +x "$stub/systemctl" "$stub/nft"
     export PATH="$stub:$PATH"
@@ -29,10 +37,15 @@ STUB
     [ "$(cat "$BATS_TEST_TMPDIR/stopped")" = "stop warden-ssh-rollback.timer" ]
 }
 
-@test "a timer that already fired is reported, the public rule is back" {
+@test "a timer that already fired has its public rule deleted by handle" {
     FIREWALL_RULES='        tcp dport 2222 accept' run "$script" 2222
+    [ "$status" -eq 0 ]
+    [ "$(cat "$BATS_TEST_TMPDIR/deleted")" = "delete rule inet warden input handle 7" ]
+}
+
+@test "a public rule that survives the delete is reported" {
+    DELETE_KEEPS_RULE=yes FIREWALL_RULES='        tcp dport 2222 accept' run "$script" 2222
     [ "$status" -eq 3 ]
-    [ ! -e "$BATS_TEST_TMPDIR/stopped" ]
 }
 
 @test "no timer and a tailnet only rule is nothing to stop" {
