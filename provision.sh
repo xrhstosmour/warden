@@ -30,6 +30,8 @@ target="${1:-}"
     exit 1
 }
 shift
+# Expanded as `${ssh_options[@]+...}` below, bash 3 on macOS fails on an empty
+# array under `set -u`.
 ssh_options=("$@")
 
 configuration="${WARDEN_CONFIGURATION:-$WARDEN_DIRECTORY/warden.conf}"
@@ -96,10 +98,10 @@ upload=".warden-upload"
 remote_directory="/root/warden"
 
 log_info "Copying warden to $host."
-ssh "${ssh_options[@]}" "$target" "rm -rf $upload && umask 077 && mkdir $upload"
+ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "rm -rf $upload && umask 077 && mkdir $upload"
 # No macOS resource fork files in the archive.
 COPYFILE_DISABLE=1 tar -C "$WARDEN_DIRECTORY" -czf - install.sh library modules files |
-    ssh "${ssh_options[@]}" "$target" "umask 077 && tar -xzf - -C $upload"
+    ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "umask 077 && tar -xzf - -C $upload"
 
 # The backup password and keys and the tunnel token are made on this machine.
 # They travel with the upload, readable by root alone, and the configuration
@@ -112,7 +114,7 @@ copy_secret() {
     [[ -n "$source" ]] || return 0
     source="${source/#\~/$HOME}"
     [[ -f "$source" ]] || fail "$source is missing, $variable names it in warden.conf."
-    ssh "${ssh_options[@]}" "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$name" <"$source"
+    ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "umask 077 && mkdir -p $upload/secrets && cat > $upload/secrets/$name" <"$source"
     secret_overrides+="$variable=\"$remote_directory/secrets/$name\""$'\n'
 }
 if uses_cloudflare_tunnel; then
@@ -129,12 +131,12 @@ fi
     cat "$configuration"
     printf '\nADMIN_PUBLIC_KEY=%q\nDEPLOY_PUBLIC_KEY=%q\n' "$ADMIN_PUBLIC_KEY" "$DEPLOY_PUBLIC_KEY"
     printf '%s' "$secret_overrides"
-} | ssh "${ssh_options[@]}" "$target" "umask 077 && cat > $upload/warden.conf"
+} | ssh ${ssh_options[@]+"${ssh_options[@]}"} "$target" "umask 077 && cat > $upload/warden.conf"
 
 log_info "Running warden on $host."
 output=$(mktemp)
 trap 'rm -f "$output"' EXIT
-ssh -t "${ssh_options[@]}" "$target" \
+ssh -t ${ssh_options[@]+"${ssh_options[@]}"} "$target" \
     "upload=\$HOME/$upload; $sudo_prefix sh -c \"rm -rf $remote_directory && mv \$upload $remote_directory && chown -R root:root $remote_directory && bash $remote_directory/install.sh $remote_directory/warden.conf\"" |
     tee "$output"
 
