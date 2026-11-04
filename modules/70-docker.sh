@@ -92,8 +92,19 @@ configuration_changed=false
 # Everything in them is made as that user, so a swapped link can only reach
 # what the user could already reach.
 as_owner() { runuser -u "$DEPLOY_USER" -- "$@"; }
+# `place_as_owner` returns 2 when the write failed. Rootless Docker would then
+# start on a configuration the run believes is in place, so the run stops.
+place_in_deploy_home() {
+    local status=0
+    place_as_owner "$DEPLOY_USER" "$@" || status=$?
+    ((status < 2)) || fail "Could not write $1, Docker was not configured."
+    return "$status"
+}
 as_owner install -d -m 0700 "$deploy_home/.config" "$deploy_home/.config/docker"
-if printf '{\n    %s\n}\n' "$daemon_options" | place_as_owner "$DEPLOY_USER" "$deploy_home/.config/docker/daemon.json" 0600; then
+# Not piped, a pipeline would run the function in a subshell, and its `fail`
+# would end that subshell alone.
+daemon_json=$(printf '{\n    %s\n}\n' "$daemon_options")
+if place_in_deploy_home "$deploy_home/.config/docker/daemon.json" 0600 <<<"$daemon_json"; then
     configuration_changed=true
 fi
 
@@ -102,7 +113,7 @@ if ((rootlesskit_major < 3)); then
     as_owner install -d -m 0700 \
         "$deploy_home/.config/systemd" "$deploy_home/.config/systemd/user" \
         "$deploy_home/.config/systemd/user/docker.service.d"
-    if place_as_owner "$DEPLOY_USER" "$override" 0644 <<'EOF'; then
+    if place_in_deploy_home "$override" 0644 <<'EOF'; then
 # Managed by warden, local changes are overwritten on the next run.
 [Service]
 Environment="DOCKERD_ROOTLESS_ROOTLESSKIT_NET=slirp4netns"
