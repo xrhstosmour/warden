@@ -31,7 +31,7 @@ ALERT_SSH_LOGIN="${ALERT_SSH_LOGIN:-yes}"
 CLOUDFLARE_ONLY="${CLOUDFLARE_ONLY:-no}"
 CLOUDFLARE_TUNNEL_TOKEN_FILE="${CLOUDFLARE_TUNNEL_TOKEN_FILE:-}"
 # Where the server keeps the token for the unit, read by the module, the unit
-# and the audit alike.
+# alike, the audit repeats the path.
 # shellcheck disable=SC2034 # Read by the module, `render_cloudflared_unit` and the audit.
 CLOUDFLARED_ENVIRONMENT_FILE=/etc/cloudflared/token.env
 BACKUP_REPOSITORY="${BACKUP_REPOSITORY:-}"
