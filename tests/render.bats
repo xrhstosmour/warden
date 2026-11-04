@@ -196,3 +196,16 @@ setup() {
     run render_ssh_rollback_service
     [[ "$output" == *"ExecStart=/usr/sbin/nft insert rule inet warden input tcp dport 2222 accept"* ]]
 }
+
+@test "a fired rollback leaves a marker for the boot service" {
+    run render_ssh_rollback_service
+    [[ "$output" == *"ExecStartPre=/usr/bin/touch /var/lib/warden/ssh-reopened"* ]]
+}
+
+@test "the boot service reopens SSH after the firewall, only while the marker exists" {
+    run render_ssh_reopen_service
+    [[ "$output" == *"ConditionPathExists=/var/lib/warden/ssh-reopened"* ]]
+    [[ "$output" == *"After=nftables.service"* ]]
+    [[ "$output" == *"ExecStart=/usr/sbin/nft insert rule inet warden input tcp dport 2222 accept"* ]]
+    [[ "$output" == *"WantedBy=multi-user.target"* ]]
+}

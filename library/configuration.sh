@@ -97,6 +97,12 @@ ssh_proof_file() {
     echo "${WARDEN_STATE_DIRECTORY:-/var/lib/warden}/ssh-proven"
 }
 
+# The marker a fired rollback leaves for `warden-ssh-reopen`. The unit files
+# name the default directory, only the tests move it.
+ssh_reopen_file() {
+    echo "${WARDEN_STATE_DIRECTORY:-/var/lib/warden}/ssh-reopened"
+}
+
 # Whether new Docker networks take their ranges from a warden pool.
 uses_docker_pool() {
     [[ -n "$DOCKER_ADDRESS_POOL" ]]

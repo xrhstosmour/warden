@@ -7,7 +7,14 @@
 # shellcheck disable=SC2034 # Read by `render_nftables`.
 TRANSITION_SSH_PORT=$(sshd -T 2>/dev/null | awk '$1 == "port" { print $2; exit }')
 # A tailnet login already worked on this port, so nobody needs the public one.
-[[ "$SSH_ACCESS" == "tailscale" ]] || rm -f "$(ssh_proof_file)"
+if [[ "$SSH_ACCESS" != "tailscale" ]]; then
+    # Nothing of the tailnet rollback may outlive the mode, a boot service
+    # left over would open a port nothing else lists.
+    rm -f "$(ssh_proof_file)" "$(ssh_reopen_file)"
+    if [[ -e /etc/systemd/system/warden-ssh-reopen.service ]]; then
+        systemctl disable -q warden-ssh-reopen.service
+    fi
+fi
 tailnet_ssh_proven && TRANSITION_SSH_PORT=""
 
 candidate=$(mktemp)

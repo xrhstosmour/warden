@@ -45,6 +45,17 @@ if [[ "$SSH_ACCESS" == "tailscale" ]]; then
     place "$WARDEN_DIRECTORY/files/warden-ssh-rollback-stop.sh" /usr/local/sbin/warden-ssh-rollback-stop 0755 || true
 fi
 
+# Kept current on every run, a server armed by an older run still waits for
+# its proof, and its rollback must survive a reboot too.
+if [[ "$SSH_ACCESS" == "tailscale" ]] && ! tailnet_ssh_proven; then
+    # Not piped, `place_content` must run in this shell for a failed write to
+    # stop the run.
+    place_content /etc/systemd/system/warden-ssh-rollback.service 0644 < <(render_ssh_rollback_service) || true
+    place_content /etc/systemd/system/warden-ssh-reopen.service 0644 < <(render_ssh_reopen_service) || true
+    systemctl daemon-reload
+    systemctl enable -q warden-ssh-reopen.service
+fi
+
 # SSH listens on its own port now, close any other one the firewall step
 # kept open for the move. A no-op when there was none.
 candidate=$(mktemp)
@@ -61,10 +72,10 @@ if place "$candidate" /etc/nftables.conf 0755; then
         # Stopped first, a timer left by an older run is transient, and a unit
         # file of the same name cannot replace it while it is pending.
         systemctl stop warden-ssh-rollback.timer warden-ssh-rollback.service 2>/dev/null || true
-        # Not piped, `place_content` must run in this shell for a failed write
-        # to stop the run.
-        place_content /etc/systemd/system/warden-ssh-rollback.service 0644 < <(render_ssh_rollback_service) || true
         place_content /etc/systemd/system/warden-ssh-rollback.timer 0644 < <(render_ssh_rollback_timer "$deadline") || true
+        # A fired rollback's marker would reopen SSH at the next boot, before
+        # this new deadline.
+        rm -f "$(ssh_reopen_file)"
         systemctl daemon-reload
         systemctl enable -q warden-ssh-rollback.timer
         systemctl restart warden-ssh-rollback.timer
