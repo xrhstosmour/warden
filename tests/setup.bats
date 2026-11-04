@@ -48,3 +48,22 @@ teardown() {
     [ "$(cat "$WARDEN_SECRETS/cloudflare-tunnel-token")" = other ]
     [ ! -e "$WARDEN_CONFIGURATION" ]
 }
+
+@test "the same token again is taken, the configuration was only lost" {
+    mkdir -p "$WARDEN_SECRETS"
+    echo "$token" >"$WARDEN_SECRETS/cloudflare-tunnel-token"
+    run bash -c "printf '%s\n' admin tailscale web '' tunnel '$token' | $BATS_TEST_DIRNAME/../setup.sh"
+    [ "$status" -eq 0 ]
+    [ -e "$WARDEN_CONFIGURATION" ]
+}
+
+@test "two options joined by a bar are not an answer" {
+    run bash -c "printf '%s\n' admin tailscale web '' 'tunnel|ports' tunnel '$token' | $BATS_TEST_DIRNAME/../setup.sh"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Pick one of: tunnel, ports, none."* ]]
+}
+
+@test "input that ends early says so" {
+    run bash -c "printf '%s\n' admin | $BATS_TEST_DIRNAME/../setup.sh"
+    [[ "$output" == *"Input ended, nothing was written."* ]]
+}

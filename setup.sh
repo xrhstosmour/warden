@@ -26,9 +26,15 @@ secrets_directory="${WARDEN_SECRETS:-$HOME/.warden}"
 
 [[ ! -e "$target" ]] || fail "$target exists, move it away first. setup.sh never overwrites a configuration."
 
+# Input ended, such as Ctrl-D, nothing has been written yet.
+ended() {
+    echo
+    fail "Input ended, nothing was written."
+}
+
 # ask "question" "default", the answer lands in `answer`.
 ask() {
-    read -r -p "$1 [$2] " answer
+    read -r -p "$1 [$2] " answer || [[ -n "$answer" ]] || ended
     answer="${answer:-$2}"
 }
 
@@ -36,14 +42,15 @@ ask() {
 choose() {
     while true; do
         ask "$1 ($3)" "$2"
-        [[ "|$3|" == *"|$answer|"* ]] && return 0
+        # A "|" in the answer would match across two options.
+        [[ "$answer" != *"|"* && "|$3|" == *"|$answer|"* ]] && return 0
         echo "Pick one of: ${3//|/, }." >&2
     done
 }
 
 # A secret is read without echo and never lands in the shell's history.
 ask_secret() {
-    read -r -s -p "$1: " answer
+    read -r -s -p "$1: " answer || [[ -n "$answer" ]] || ended
     echo
 }
 
@@ -86,15 +93,17 @@ echo "Web: tunnel brings traffic in through Cloudflare with no public port. port
 choose "How does web traffic reach the server?" tunnel "tunnel|ports|none"
 case "$answer" in
 tunnel)
-    # One token file per place, another server's token must not be replaced
-    # under it, its next provision.sh would join this server to the wrong tunnel.
     token_file="$secrets_directory/cloudflare-tunnel-token"
-    [[ ! -e "$token_file" ]] ||
-        fail "$token_file exists, probably another server's token. Move it, or set WARDEN_SECRETS to another directory for this server."
     echo
     echo "Create the tunnel in the Zero Trust dashboard under Networks, Tunnels, choose Cloudflared, and copy the token from the install command."
     ask_secret "Tunnel token"
     is_tunnel_token "$answer" || fail "That does not look like a tunnel token."
+    # One token file per place, another server's token must not be replaced
+    # under it, its next provision.sh would join this server to the wrong
+    # tunnel. The same token again is a rerun after the configuration went.
+    if [[ -e "$token_file" && "$(cat "$token_file")" != "$answer" ]]; then
+        fail "$token_file holds another token, probably another server's. Move it, or set WARDEN_SECRETS to another directory for this server."
+    fi
     (umask 077 && mkdir -p "$secrets_directory")
     (umask 077 && printf '%s\n' "$answer" >"$token_file")
     log_info "Token saved to $token_file, readable by you alone."
