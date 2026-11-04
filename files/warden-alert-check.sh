@@ -13,7 +13,8 @@ alert="${WARDEN_ALERT:-/usr/local/sbin/warden-alert}"
 ALERT_DISK_PERCENT=85
 # shellcheck disable=SC1091 # Written by warden, root's file.
 source "$configuration_directory/alerts.conf" 2>/dev/null
-[[ "$ALERT_DISK_PERCENT" =~ ^[0-9]{2}$ ]] || exit 0
+# The range `validate_configuration` allows, 50 to 99.
+[[ "$ALERT_DISK_PERCENT" =~ ^[5-9][0-9]$ ]] || exit 0
 
 host=$(hostname)
 install -d -m 0700 "$state_directory"

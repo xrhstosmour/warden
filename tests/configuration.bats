@@ -412,3 +412,25 @@ setup() {
     run is_tailscale_tag "tag:web tag:internal"
     [ "$status" -ne 0 ]
 }
+
+@test "a tailnet login proven for the SSH port is remembered for that port only" {
+    export WARDEN_STATE_DIRECTORY="$BATS_TEST_TMPDIR"
+    SSH_ACCESS=tailscale
+    run tailnet_ssh_proven
+    [ "$status" -ne 0 ]
+    echo 2222 >"$BATS_TEST_TMPDIR/ssh-proven"
+    run tailnet_ssh_proven
+    [ "$status" -eq 0 ]
+    SSH_PORT=2223
+    run tailnet_ssh_proven
+    [ "$status" -ne 0 ]
+    SSH_PORT=2222
+    SSH_ACCESS=public
+    run tailnet_ssh_proven
+    [ "$status" -ne 0 ]
+}
+
+@test "the proof lives in the state directory" {
+    export WARDEN_STATE_DIRECTORY="$BATS_TEST_TMPDIR"
+    [ "$(ssh_proof_file)" = "$BATS_TEST_TMPDIR/ssh-proven" ]
+}

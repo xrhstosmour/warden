@@ -10,6 +10,7 @@ setup() {
 case "$1" in
 is-active) [[ "${TIMER_ACTIVE:-no}" == "yes" ]] ;;
 stop) echo "$*" >>"$BATS_TEST_TMPDIR/stopped" ;;
+disable) echo "$*" >>"$BATS_TEST_TMPDIR/disabled" ;;
 esac
 STUB
     # An nft that prints the input chain as it is in FIREWALL_RULES.
@@ -29,12 +30,22 @@ STUB
     chmod +x "$stub/systemctl" "$stub/nft"
     export PATH="$stub:$PATH"
     export BATS_TEST_TMPDIR
+    export WARDEN_STATE_DIRECTORY="$BATS_TEST_TMPDIR/state"
 }
 
 @test "a pending timer is stopped" {
     TIMER_ACTIVE=yes FIREWALL_RULES='        iifname "tailscale0" tcp dport 2222 accept' run "$script" 2222
     [ "$status" -eq 0 ]
     [ "$(cat "$BATS_TEST_TMPDIR/stopped")" = "stop warden-ssh-rollback.timer" ]
+    [ "$(cat "$BATS_TEST_TMPDIR/disabled")" = "disable -q warden-ssh-rollback.timer" ]
+    [ "$(cat "$BATS_TEST_TMPDIR/state/ssh-proven")" = 2222 ]
+}
+
+@test "a pending timer is stopped and a public rule found with it is deleted" {
+    TIMER_ACTIVE=yes FIREWALL_RULES='        tcp dport 2222 accept' run "$script" 2222
+    [ "$status" -eq 0 ]
+    [ "$(cat "$BATS_TEST_TMPDIR/stopped")" = "stop warden-ssh-rollback.timer" ]
+    [ "$(cat "$BATS_TEST_TMPDIR/deleted")" = "delete rule inet warden input handle 7" ]
 }
 
 @test "a timer that already fired has its public rule deleted by handle" {
@@ -46,6 +57,7 @@ STUB
 @test "a public rule that survives the delete is reported" {
     DELETE_KEEPS_RULE=yes FIREWALL_RULES='        tcp dport 2222 accept' run "$script" 2222
     [ "$status" -eq 3 ]
+    [ ! -e "$BATS_TEST_TMPDIR/state/ssh-proven" ]
 }
 
 @test "no timer and a tailnet only rule is nothing to stop" {
