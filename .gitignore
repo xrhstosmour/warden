@@ -1,2 +1,4 @@
 # Holds the server's public keys and choices, kept per machine.
 warden.conf
+# Another name given through `WARDEN_CONFIGURATION` in this directory holds the same secrets.
+/*.conf
