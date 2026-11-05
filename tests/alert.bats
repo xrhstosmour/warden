@@ -222,3 +222,167 @@ EOF
     run "$directory/warden-alert-check.sh"
     [ "$(grep -c 'Disk almost full' "$work/alert-calls")" -eq 2 ]
 }
+
+# A check run with every source stubbed, so each test sets only what it reads.
+check_with() {
+    cat >"$work/alert" <<'EOS'
+#!/bin/bash
+echo "$1 $2 $3" >>"$WORK/alert-calls"
+EOS
+    cat >"$work/bin/df" <<'EOS'
+#!/bin/bash
+printf 'Use%%\n 10%%\n'
+EOS
+    printf '#!/bin/bash\n' >"$work/bin/systemctl"
+    printf '#!/bin/bash\necho 4\n' >"$work/bin/nproc"
+    chmod +x "$work/alert" "$work/bin/df" "$work/bin/systemctl" "$work/bin/nproc"
+    export WARDEN_ALERT="$work/alert"
+    export WARDEN_PROC_DIRECTORY="$work/proc"
+    mkdir -p "$work/proc"
+    printf 'MemTotal: 1000 kB\nMemAvailable: %s kB\n' "${1:-500}" >"$work/proc/meminfo"
+    echo "${2:-0.10} ${2:-0.10} ${2:-0.10} 1/100 1" >"$work/proc/loadavg"
+}
+
+@test "high memory alerts once and again when it recovers" {
+    check_with 50
+    run "$directory/warden-alert-check.sh"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Memory almost full' "$work/alert-calls")" -eq 1 ]
+
+    check_with 500
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Memory back' "$work/alert-calls")" -eq 1 ]
+}
+
+@test "memory is judged by what is available, a full cache is not an alert" {
+    check_with 750
+    # 80 percent is not free, 25 percent is cache that can be given back.
+    printf 'MemTotal: 1000 kB\nMemFree: 50 kB\nMemAvailable: 750 kB\nCached: 700 kB\n' >"$work/proc/meminfo"
+    run "$directory/warden-alert-check.sh"
+    ! grep -q 'Memory' "$work/alert-calls" 2>/dev/null
+}
+
+@test "load alerts at twice the cores over 15 minutes, and not below" {
+    check_with 500 7.99
+    run "$directory/warden-alert-check.sh"
+    ! grep -q 'Load high' "$work/alert-calls" 2>/dev/null
+
+    check_with 500 8.00
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Load high' "$work/alert-calls")" -eq 1 ]
+
+    check_with 500 0.5
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Load back' "$work/alert-calls")" -eq 1 ]
+}
+
+@test "full inodes alert on their own, with the disk space fine" {
+    check_with
+    cat >"$work/bin/df" <<'EOS'
+#!/bin/bash
+case "$*" in *ipcent*) printf 'IUse%%\n 97%%\n' ;; *) printf 'Use%%\n 10%%\n' ;; esac
+EOS
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Inodes almost full' "$work/alert-calls")" -eq 1 ]
+    ! grep -q 'Disk almost full' "$work/alert-calls"
+}
+
+@test "a clock out of sync alerts, an unknown answer does not" {
+    check_with
+    printf '#!/bin/bash\necho no\n' >"$work/bin/timedatectl"
+    chmod +x "$work/bin/timedatectl"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Clock out of sync' "$work/alert-calls")" -eq 1 ]
+
+    rm -f "$work/alert-calls" "$work/state/clock-unsynchronised"
+    printf '#!/bin/bash\nexit 1\n' >"$work/bin/timedatectl"
+    run "$directory/warden-alert-check.sh"
+    ! grep -q 'Clock' "$work/alert-calls" 2>/dev/null
+}
+
+# The container check asks Docker as the deploy user, so the tests stand in
+# for the user lookup, runuser and timeout. The timeout stub only records the
+# limit and can report that it was hit, a real wait would slow the suite.
+containers_with() {
+    check_with
+    echo "DEPLOY_USER=deploy" >>"$WARDEN_CONFIGURATION_DIRECTORY/alerts.conf"
+    printf '#!/bin/bash\n[ "$1" = -u ] && echo 1000 || exit 0\n' >"$work/bin/id"
+    printf '#!/bin/bash\necho deploy:x:1000:1000::/home/deploy:/bin/bash\n' >"$work/bin/getent"
+    printf '#!/bin/bash\necho "$@" >>"$WORK/runuser-arguments"\ncat "$WORK/containers"\nexit "${DOCKER_STATUS:-0}"\n' >"$work/bin/runuser"
+    printf '#!/bin/bash\necho "$1" >>"$WORK/timeout-limits"\n[ -n "${TIMEOUT_HIT:-}" ] && exit 124\nshift\nexec "$@"\n' >"$work/bin/timeout"
+    chmod +x "$work/bin/id" "$work/bin/getent" "$work/bin/runuser" "$work/bin/timeout"
+}
+
+@test "an unhealthy, restarting or crashed container alerts, a finished one does not" {
+    containers_with
+    printf '%s\n' 'web|Up 2 hours (unhealthy)' 'worker|Restarting (1) 5 seconds ago' \
+        'job|Exited (137) 3 minutes ago' 'migrate|Exited (0) 3 minutes ago' 'db|Up 2 hours (healthy)' >"$work/containers"
+    run "$directory/warden-alert-check.sh"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Container unhealthy' "$work/alert-calls")" -eq 1 ]
+    grep -q 'job web worker' "$work/alert-calls"
+    ! grep -q 'migrate' "$work/alert-calls"
+
+    printf '%s\n' 'web|Up 2 hours (healthy)' >"$work/containers"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Containers healthy' "$work/alert-calls")" -eq 1 ]
+}
+
+@test "Docker is asked as the deploy user on its own socket, within a time limit" {
+    containers_with
+    : >"$work/containers"
+    run "$directory/warden-alert-check.sh"
+    grep -q -- '-u deploy -- env HOME=/home/deploy DOCKER_HOST=unix:///run/user/1000/docker.sock docker ps' "$work/runuser-arguments"
+    [ "$(cat "$work/timeout-limits")" = 30 ]
+}
+
+@test "another container breaking while one is broken is a new alert" {
+    containers_with
+    printf '%s\n' 'web|Up 2 hours (unhealthy)' >"$work/containers"
+    run "$directory/warden-alert-check.sh"
+    printf '%s\n' 'web|Up 2 hours (unhealthy)' 'worker|Restarting (1) 5 seconds ago' >"$work/containers"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Container unhealthy' "$work/alert-calls")" -eq 2 ]
+    grep -q 'Container unhealthy .*web worker' "$work/alert-calls"
+}
+
+@test "a container name Docker would not allow never reaches the message" {
+    containers_with
+    printf '%s\n' 'web; all clear|Up 2 hours (unhealthy)' 'db|Restarting (1) 5 seconds ago' >"$work/containers"
+    run "$directory/warden-alert-check.sh"
+    grep -q 'Container unhealthy .*db' "$work/alert-calls"
+    ! grep -q 'all clear' "$work/alert-calls"
+}
+
+@test "a Docker daemon that does not answer alerts once, not as healthy containers, and again when it is back" {
+    containers_with
+    printf '%s\n' 'web|Exited (1) 3 minutes ago' >"$work/containers"
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Container unhealthy' "$work/alert-calls")" -eq 1 ]
+
+    : >"$work/containers"
+    DOCKER_STATUS=1 run "$directory/warden-alert-check.sh"
+    DOCKER_STATUS=1 run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Docker not answering' "$work/alert-calls")" -eq 1 ]
+    ! grep -q 'Containers healthy' "$work/alert-calls"
+
+    run "$directory/warden-alert-check.sh"
+    [ "$(grep -c 'Docker answering' "$work/alert-calls")" -eq 1 ]
+}
+
+@test "a Docker call that hits its time limit is a daemon that does not answer, and the later checks still run" {
+    containers_with
+    echo "nginx.service loaded failed failed Web server" >"$work/failed"
+    printf '#!/bin/bash\ncat "$WORK/failed"\n' >"$work/bin/systemctl"
+    TIMEOUT_HIT=1 run "$directory/warden-alert-check.sh"
+    grep -q 'Docker not answering' "$work/alert-calls"
+    grep -q 'Unit failed' "$work/alert-calls"
+}
+
+@test "containers are not asked about without a deploy user" {
+    check_with
+    printf '#!/bin/bash\ntouch "$WORK/asked"\n' >"$work/bin/runuser"
+    chmod +x "$work/bin/runuser"
+    run "$directory/warden-alert-check.sh"
+    [ ! -e "$work/asked" ]
+}
