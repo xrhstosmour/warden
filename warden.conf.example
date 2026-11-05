@@ -117,7 +117,8 @@ CLOUDFLARE_TUNNEL_TOKEN_FILE=""
 # Alerts to your phone through ntfy. Off by default, it needs the ntfy app
 # and sends text through the ntfy server you pick.
 #   no:   nothing is sent.
-#   ntfy: a full disk, a failed unit and optionally every SSH login.
+#   ntfy: a full disk or inodes, memory, load, the clock, a failed unit or
+#         container, and optionally every SSH login.
 # warden makes a random topic on the server, which is the only password to
 # it, anyone who learns it can read your alerts or send fake ones. Read it
 # with `sudo cat /var/lib/warden/ntfy-topic` and subscribe to it in the app.
@@ -128,8 +129,12 @@ ALERTS=no
 # https://ntfy.sh is the public server. Your own ntfy server works the same.
 NTFY_SERVER=https://ntfy.sh
 
-# Alert when / is this full, in percent, 50 to 99.
+# Alert when / or its inodes are this full, in percent, 50 to 99.
 ALERT_DISK_PERCENT=85
+
+# Alert when memory in use, cache not counted, is this full, in percent, 50 to
+# 99. Load alerts at 2 per core over 15 minutes, the clock when it loses sync.
+ALERT_MEMORY_PERCENT=90
 
 # yes: also one alert per SSH login, with the user name only.
 ALERT_SSH_LOGIN=yes

@@ -1,9 +1,9 @@
 #!/bin/bash
-# Push alerts to your phone through ntfy: a full disk, a failed unit, and
-# optionally every SSH login. Off unless `ALERTS=ntfy`. The topic is the only
-# secret, it lives under /var/lib/warden, outside /etc, so etckeeper never
-# commits it. A dead server sends nothing, this does not replace a monitor
-# outside it.
+# Push alerts to your phone through ntfy: a full disk, memory, load, a failed
+# unit or container, and optionally every SSH login. Off unless
+# `ALERTS=ntfy`. The topic is the only secret, it lives under /var/lib/warden,
+# outside /etc, so etckeeper never commits it. A dead server sends nothing,
+# this does not replace a monitor outside it.
 
 pam_file=/etc/pam.d/sshd
 hook=/usr/local/sbin/warden-alert-login
@@ -40,6 +40,8 @@ place_content /etc/warden/alerts.conf 0644 <<EOF || true
 # Managed by warden, local changes are overwritten on the next run.
 NTFY_SERVER=$NTFY_SERVER
 ALERT_DISK_PERCENT=$ALERT_DISK_PERCENT
+ALERT_MEMORY_PERCENT=$ALERT_MEMORY_PERCENT
+DEPLOY_USER=$DEPLOY_USER
 EOF
 
 # 36 random bytes, 48 characters, the password to the topic.
@@ -54,16 +56,19 @@ changed=false
 place_content /etc/systemd/system/warden-alert-check.service 0644 <<'EOF' && changed=true
 # Managed by warden, local changes are overwritten on the next run.
 [Unit]
-Description=Alert on a full disk or a failed unit
+Description=Alert on a full disk, memory, load, clock, a failed unit or container
 
 [Service]
 Type=oneshot
+# A oneshot unit has no start timeout by default, and a check that never
+# ends stops the timer from starting the next one.
+TimeoutStartSec=5min
 ExecStart=/usr/local/sbin/warden-alert-check
 EOF
 place_content /etc/systemd/system/warden-alert-check.timer 0644 <<'EOF' && changed=true
 # Managed by warden, local changes are overwritten on the next run.
 [Unit]
-Description=Check the disk and the units every 15 minutes
+Description=Check the machine and its containers every 15 minutes
 
 [Timer]
 OnBootSec=5min
