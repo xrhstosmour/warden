@@ -163,17 +163,19 @@ EOF
     [ "$(grep -c 'Disk space back' "$work/alert-calls")" -eq 1 ]
 }
 
-@test "a threshold under 50 is ignored, as the configuration refuses it" {
-    printf '#!/bin/bash\necho "$1" >>"$WORK/alert-calls"\n' >"$work/alert"
+@test "a threshold under 50 falls back to 85 and the other alerts still run, as the configuration refuses it" {
+    printf '#!/bin/bash\necho "$1 $2" >>"$WORK/alert-calls"\n' >"$work/alert"
+    # Between the bad 10 and the default 85, so only the fallback stays quiet.
     printf 'Use%%\n 20%%\n' >"$work/df-output"
     printf '#!/bin/bash\ncat "$WORK/df-output"\n' >"$work/bin/df"
-    printf '#!/bin/bash\n' >"$work/bin/systemctl"
+    printf '#!/bin/bash\necho "nginx.service loaded failed failed Web server"\n' >"$work/bin/systemctl"
     chmod +x "$work/alert" "$work/bin/df" "$work/bin/systemctl"
     export WARDEN_ALERT="$work/alert"
     echo "ALERT_DISK_PERCENT=10" >>"$WARDEN_CONFIGURATION_DIRECTORY/alerts.conf"
     run "$directory/warden-alert-check.sh"
     [ "$status" -eq 0 ]
-    [ ! -e "$work/alert-calls" ]
+    ! grep -q 'Almost full\|almost full' "$work/alert-calls"
+    grep -q 'Unit failed' "$work/alert-calls"
 }
 
 @test "a failed unit alerts once and again when it is healthy" {
