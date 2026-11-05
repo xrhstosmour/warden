@@ -12,16 +12,17 @@ state_directory="${WARDEN_STATE_DIRECTORY:-/var/lib/warden}"
 alert="${WARDEN_ALERT:-/usr/local/sbin/warden-alert}"
 proc_directory="${WARDEN_PROC_DIRECTORY:-/proc}"
 
-ALERT_DISK_PERCENT=85
+default_disk_percent=85
+ALERT_DISK_PERCENT=$default_disk_percent
 default_memory_percent=90
 ALERT_MEMORY_PERCENT=$default_memory_percent
 DEPLOY_USER=""
 # shellcheck disable=SC1091 # Written by warden, root's file.
 source "$configuration_directory/alerts.conf" 2>/dev/null
-# The range `validate_configuration` allows, 50 to 99.
-[[ "$ALERT_DISK_PERCENT" =~ ^[5-9][0-9]$ ]] || exit 0
-# A bad memory value only costs the memory alert its threshold, exiting here
-# would silence every other alert on the machine without a sign.
+# The range `validate_configuration` allows, 50 to 99. A bad value only costs
+# its own alert the threshold, exiting here would silence every other alert on
+# the machine without a sign.
+[[ "$ALERT_DISK_PERCENT" =~ ^[5-9][0-9]$ ]] || ALERT_DISK_PERCENT=$default_disk_percent
 [[ "$ALERT_MEMORY_PERCENT" =~ ^[5-9][0-9]$ ]] || ALERT_MEMORY_PERCENT=$default_memory_percent
 
 host=$(hostname)
