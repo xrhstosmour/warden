@@ -386,3 +386,16 @@ containers_with() {
     run "$directory/warden-alert-check.sh"
     [ ! -e "$work/asked" ]
 }
+
+@test "a bad memory threshold falls back to 90 and the other alerts still run" {
+    # Exactly 90 percent used, so only a fallback of 90 or less alerts.
+    check_with 100
+    echo "ALERT_MEMORY_PERCENT=abc" >>"$WARDEN_CONFIGURATION_DIRECTORY/alerts.conf"
+    cat >"$work/bin/df" <<'EOS'
+#!/bin/bash
+printf 'Use%%\n 91%%\n'
+EOS
+    run "$directory/warden-alert-check.sh"
+    grep -q 'Disk almost full' "$work/alert-calls"
+    grep -q 'Memory almost full' "$work/alert-calls"
+}
