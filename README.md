@@ -69,7 +69,7 @@ warden expects a tailnet policy that treats an untagged machine of yours as a pe
 
 ## Alerts
 
-Off by default. `ALERTS=ntfy` in `warden.conf` pushes a full disk, a failed unit and, with `ALERT_SSH_LOGIN=yes`, every SSH login to your phone through [ntfy](https://ntfy.sh).
+Off by default. `ALERTS=ntfy` in `warden.conf` pushes a full disk or inodes, high memory (`ALERT_MEMORY_PERCENT`), load above 2 per core for 15 minutes, a clock out of sync, a failed unit, an unhealthy, restarting or crashed container of the deploy user, a Docker daemon that stops answering and, with `ALERT_SSH_LOGIN=yes`, every SSH login to your phone through [ntfy](https://ntfy.sh).
 
 1. Install the ntfy app on your phone. The F-Droid build has no Google dependency, the Play build gets its pushes through Google.
 2. Run warden. It makes a random topic on the server and sends a test message once.
