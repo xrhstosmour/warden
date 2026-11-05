@@ -32,6 +32,8 @@ if grep -q "$rule" <<<"$rules"; then
     rules=$(nft -a list chain inet warden input) || exit 4
     grep -q "$rule" <<<"$rules" && exit 3
 fi
+# The reboot safety net of a fired rollback is not needed any more.
+rm -f "${WARDEN_STATE_DIRECTORY:-/var/lib/warden}/ssh-reopened"
 # Remembered, so a later run neither opens SSH to everyone for the move nor
 # arms the rollback again. Enabled until now, so a reboot before this point
 # still fires it, done with, it must not come back at the next boot.

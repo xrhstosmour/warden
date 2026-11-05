@@ -430,7 +430,8 @@ setup() {
     [ "$status" -ne 0 ]
 }
 
-@test "the proof lives in the state directory" {
+@test "the proof and the reopen marker live in the state directory" {
     export WARDEN_STATE_DIRECTORY="$BATS_TEST_TMPDIR"
     [ "$(ssh_proof_file)" = "$BATS_TEST_TMPDIR/ssh-proven" ]
+    [ "$(ssh_reopen_file)" = "$BATS_TEST_TMPDIR/ssh-reopened" ]
 }

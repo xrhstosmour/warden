@@ -41,6 +41,14 @@ STUB
     [ "$(cat "$BATS_TEST_TMPDIR/state/ssh-proven")" = 2222 ]
 }
 
+@test "the reopen marker of a fired rollback is removed" {
+    mkdir -p "$BATS_TEST_TMPDIR/state"
+    touch "$BATS_TEST_TMPDIR/state/ssh-reopened"
+    FIREWALL_RULES='        tcp dport 2222 accept' run "$script" 2222
+    [ "$status" -eq 0 ]
+    [ ! -e "$BATS_TEST_TMPDIR/state/ssh-reopened" ]
+}
+
 @test "a pending timer is stopped and a public rule found with it is deleted" {
     TIMER_ACTIVE=yes FIREWALL_RULES='        tcp dport 2222 accept' run "$script" 2222
     [ "$status" -eq 0 ]

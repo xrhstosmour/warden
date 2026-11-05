@@ -272,7 +272,32 @@ After=nftables.service
 
 [Service]
 Type=oneshot
+# The rule below lives in the running firewall only. The marker makes
+# warden-ssh-reopen put it back after a reboot, until the stop script
+# removes it.
+ExecStartPre=/usr/bin/mkdir -p /var/lib/warden
+ExecStartPre=/usr/bin/touch /var/lib/warden/ssh-reopened
 ExecStart=/usr/sbin/nft insert rule inet warden input tcp dport $SSH_PORT accept
+EOS
+}
+
+# Runs at boot, after the firewall is loaded, and only while the rollback has
+# fired and no tailnet login has been proven since. Without it a reboot would
+# drop the rule and lock out the operator who was let back in.
+render_ssh_reopen_service() {
+    cat <<EOS
+# Managed by warden, local changes are overwritten on the next run.
+[Unit]
+Description=Keep public SSH open after a fired rollback, across a reboot
+After=nftables.service
+ConditionPathExists=/var/lib/warden/ssh-reopened
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/nft insert rule inet warden input tcp dport $SSH_PORT accept
+
+[Install]
+WantedBy=multi-user.target
 EOS
 }
 
