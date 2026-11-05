@@ -20,6 +20,7 @@ setup() {
     ALERTS=no
     NTFY_SERVER=https://ntfy.sh
     ALERT_DISK_PERCENT=85
+    ALERT_MEMORY_PERCENT=90
     ALERT_SSH_LOGIN=yes
     BACKUP_REPOSITORY=""
     BACKUP_PASSWORD_FILE=""
@@ -215,7 +216,7 @@ setup() {
 }
 
 @test "alerts accept only no or ntfy, over https, with a sensible disk threshold" {
-    for assignment in ALERTS=signal NTFY_SERVER=http://ntfy.sh NTFY_SERVER=ntfy.sh ALERT_DISK_PERCENT=10 ALERT_DISK_PERCENT=100 ALERT_SSH_LOGIN=maybe; do
+    for assignment in ALERTS=signal NTFY_SERVER=http://ntfy.sh NTFY_SERVER=ntfy.sh ALERT_DISK_PERCENT=10 ALERT_DISK_PERCENT=100 ALERT_MEMORY_PERCENT=10 ALERT_SSH_LOGIN=maybe; do
         setup
         printf -v "${assignment%%=*}" '%s' "${assignment#*=}"
         run validate_configuration

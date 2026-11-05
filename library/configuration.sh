@@ -27,6 +27,7 @@ DOCKER_ADDRESS_POOL="${DOCKER_ADDRESS_POOL-172.30.0.0/16}"
 ALERTS="${ALERTS:-no}"
 NTFY_SERVER="${NTFY_SERVER:-https://ntfy.sh}"
 ALERT_DISK_PERCENT="${ALERT_DISK_PERCENT:-85}"
+ALERT_MEMORY_PERCENT="${ALERT_MEMORY_PERCENT:-90}"
 ALERT_SSH_LOGIN="${ALERT_SSH_LOGIN:-yes}"
 CLOUDFLARE_ONLY="${CLOUDFLARE_ONLY:-no}"
 CLOUDFLARE_TUNNEL_TOKEN_FILE="${CLOUDFLARE_TUNNEL_TOKEN_FILE:-}"
@@ -263,6 +264,7 @@ validate_configuration() {
     [[ "$ALERTS" =~ ^(no|ntfy)$ ]] || problems+=("ALERTS must be no or ntfy.")
     [[ "$NTFY_SERVER" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]] || problems+=("NTFY_SERVER must be an https address, such as https://ntfy.sh.")
     [[ "$ALERT_DISK_PERCENT" =~ ^([5-9][0-9])$ ]] || problems+=("ALERT_DISK_PERCENT must be from 50 to 99.")
+    [[ "$ALERT_MEMORY_PERCENT" =~ ^([5-9][0-9])$ ]] || problems+=("ALERT_MEMORY_PERCENT must be from 50 to 99.")
     [[ "$ALERT_SSH_LOGIN" =~ ^(yes|no)$ ]] || problems+=("ALERT_SSH_LOGIN must be yes or no.")
     if [[ -n "$BACKUP_REPOSITORY" ]]; then
         local backup_kind=""
@@ -319,7 +321,7 @@ describe_features() {
     print_feature "warden-audit" "$([[ "$AUDIT_TOOL" == yes ]] && echo on || echo off)" "AUDIT_TOOL, sudo warden-audit"
     print_feature "Tailscale" "$(uses_tailscale && echo on || echo off)" "SSH_ACCESS, TAILSCALE_SSH, TAILSCALE_AUTH_KEY, TAILSCALE_TAG"
     print_feature "Docker address pool" "$(uses_docker_pool && echo on || echo off)" "DOCKER_ADDRESS_POOL=${DOCKER_ADDRESS_POOL:-the Docker default}"
-    print_feature "alerts" "$(uses_alerts && echo on || echo off)" "ALERTS=ntfy, phone alerts for disk, units and SSH logins"
+    print_feature "alerts" "$(uses_alerts && echo on || echo off)" "ALERTS=ntfy, phone alerts for disk, memory, load, units, containers and SSH logins"
     print_feature "backups" "$(uses_backups && echo on || echo off)" "BACKUP_REPOSITORY, encrypted restic backups"
     print_feature "Cloudflare Tunnel" "$(uses_cloudflare_tunnel && echo on || echo off)" "CLOUDFLARE_TUNNEL_TOKEN_FILE, web traffic with no public port"
     print_feature "Cloudflare only" "$(uses_cloudflare && echo on || echo off)" "CLOUDFLARE_ONLY, public ports for Cloudflare alone"
